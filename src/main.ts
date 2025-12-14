@@ -60,22 +60,23 @@ async function bootstrap() {
   // Global exception filter for consistent error responses
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Swagger/OpenAPI configuration
+  // Configuración de Swagger/OpenAPI
   const config = new DocumentBuilder()
-    .setTitle('QA Indicators Management API')
+    .setTitle('API de Gestión de Indicadores QA')
     .setDescription(
-      'RESTful API for managing QA projects, test runs, and metrics across regression, performance, and security pipelines',
+      'API RESTful para la gestión de proyectos QA, ejecuciones de pruebas y métricas de calidad. Soporta pipelines de regresión, rendimiento y seguridad con cálculos automáticos de cobertura y análisis de tendencias.',
     )
     .setVersion('1.0.0')
-    .addTag('projects', 'Project management endpoints')
-    .addTag('indicators', 'Test run indicators and metrics')
-    .addTag('users', 'User management and authentication')
+    .addTag('projects', 'Gestión de proyectos y productos')
+    .addTag('indicators', 'Indicadores de ejecución y métricas de pruebas')
+    .addTag('users', 'Gestión de usuarios y autenticación')
+    .addTag('Health', 'Verificación de estado del servicio')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: 'Enter JWT token',
+        description: 'Ingrese el token JWT obtenido del endpoint /users/login',
       },
       'JWT-auth',
     )
@@ -83,7 +84,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document, {
-    customSiteTitle: 'QA Indicators API Docs',
+    customSiteTitle: 'Documentación API - Indicadores QA',
     customCss: '.swagger-ui .topbar { display: none }',
   });
 

@@ -2,16 +2,24 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNumber, IsPositive } from 'class-validator';
 
 export class CreateProjectDto {
-  @ApiProperty({ description: 'Nombre del producto', example: 'Portal Web' })
+  @ApiProperty({
+    description: 'Nombre del producto o aplicación a evaluar',
+    example: 'Portal Web',
+  })
   @IsString()
   product: string;
 
-  @ApiProperty({ description: 'Prefijo del proyecto', example: 'PW' })
+  @ApiProperty({
+    description:
+      'Prefijo o código corto del proyecto (usado para identificación rápida)',
+    example: 'PW',
+  })
   @IsString()
   prefix: string;
 
   @ApiProperty({
-    description: 'Total de tests definidos',
+    description:
+      'Número total de casos de prueba definidos en el plan de pruebas del proyecto',
     example: 150,
   })
   @IsNumber()

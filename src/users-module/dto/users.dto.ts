@@ -11,7 +11,7 @@ import { UserRole } from '../users.entity';
 export class CreateUserDto {
   @ApiProperty({
     example: 'johndoe',
-    description: 'Username único del usuario',
+    description: 'Nombre de usuario único (mínimo 3 caracteres, sin espacios)',
   })
   @IsString()
   @MinLength(3)
@@ -19,14 +19,16 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: 'john@example.com',
-    description: 'Email único del usuario',
+    description:
+      'Dirección de correo electrónico única (usado para autenticación)',
   })
   @IsEmail()
   email: string;
 
   @ApiProperty({
-    example: 'password123',
-    description: 'Contraseña del usuario (mínimo 6 caracteres)',
+    example: 'SecurePass123!',
+    description:
+      'Contraseña del usuario (mínimo 6 caracteres). Se almacenará encriptada con bcrypt',
   })
   @IsString()
   @MinLength(6)
@@ -35,7 +37,8 @@ export class CreateUserDto {
   @ApiPropertyOptional({
     enum: UserRole,
     default: UserRole.VIEWER,
-    description: 'Rol del usuario (admin o viewer). Por defecto es viewer',
+    description:
+      'Rol del usuario: ADMIN (acceso completo) o VIEWER (solo lectura). Por defecto es VIEWER',
   })
   @IsEnum(UserRole)
   @IsOptional()
@@ -45,21 +48,26 @@ export class CreateUserDto {
 export class LoginDto {
   @ApiProperty({
     example: 'john@example.com',
-    description: 'Email del usuario',
+    description: 'Dirección de correo electrónico del usuario registrado',
   })
   @IsEmail()
   email: string;
 
   @ApiProperty({
-    example: 'password123',
-    description: 'Contraseña del usuario',
+    example: 'SecurePass123!',
+    description: 'Contraseña del usuario (debe coincidir con la registrada)',
   })
   @IsString()
   password: string;
 }
 
 export class UpdateUserRoleDto {
-  @ApiProperty({ enum: UserRole, description: 'Nuevo rol para el usuario' })
+  @ApiProperty({
+    enum: UserRole,
+    description:
+      'Nuevo rol a asignar: ADMIN (acceso total) o VIEWER (solo lectura)',
+    example: UserRole.ADMIN,
+  })
   @IsEnum(UserRole)
   role: UserRole;
 }

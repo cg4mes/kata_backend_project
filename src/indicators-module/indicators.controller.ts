@@ -31,15 +31,29 @@ export class IndicatorsController {
   constructor(private readonly service: IndicatorsService) {}
 
   @Post('test-runs')
-  @ApiOperation({ summary: 'Ingerir datos de test runs desde Lambda' })
+  @ApiOperation({
+    summary: 'Ingerir resultados de ejecuciones de pruebas',
+    description:
+      'Endpoint para recibir datos de ejecuciones de pruebas (regression, security, performance) desde servicios externos como AWS Lambda o pipelines CI/CD. Requiere autenticación mediante token interno.',
+  })
   @ApiHeader({
     name: 'x-internal-token',
-    description: 'Token de autenticación interno',
+    description:
+      'Token de autenticación interno (configurado en SSM Parameter Store)',
     required: true,
   })
-  @ApiResponse({ status: 201, description: 'Indicador creado exitosamente' })
-  @ApiResponse({ status: 401, description: 'Token inválido' })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
+  @ApiResponse({
+    status: 201,
+    description: 'Indicador creado exitosamente en la base de datos',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token de autenticación inválido o faltante',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado. Verifique que el teamName exista',
+  })
   ingestTestRun(
     @Body() dto: LambdaIngestionDto,
     @Headers('x-internal-token') token: string,
@@ -55,13 +69,21 @@ export class IndicatorsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener indicadores por proyecto' })
+  @ApiOperation({
+    summary: 'Obtener todas las ejecuciones de un proyecto',
+    description:
+      'Retorna el historial completo de ejecuciones de pruebas (regression, security, performance) para un proyecto específico.',
+  })
   @ApiQuery({
     name: 'projectId',
-    description: 'ID del proyecto',
+    description:
+      'ID único del proyecto del cual se desean obtener los indicadores',
     required: true,
   })
-  @ApiResponse({ status: 200, description: 'Lista de indicadores' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de indicadores ordenados por fecha de ejecución',
+  })
   findByProject(@Query('projectId') projectId: string) {
     return this.service.findByProject(projectId);
   }
@@ -69,33 +91,60 @@ export class IndicatorsController {
   @Delete(':id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Eliminar un indicador (solo admin)' })
-  @ApiResponse({ status: 200, description: 'Indicador eliminado exitosamente' })
-  @ApiResponse({ status: 404, description: 'Indicador no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Eliminar una ejecución específica',
+    description:
+      'Elimina permanentemente un indicador de prueba por su ID. Solo usuarios con rol ADMIN pueden realizar esta acción.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Indicador eliminado exitosamente de la base de datos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Indicador no encontrado con el ID proporcionado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   async remove(@Param('id') id: string): Promise<{ message: string }> {
     await this.service.delete(id);
-    return { message: 'Test run deleted successfully' };
+    return { message: 'Ejecución de prueba eliminada exitosamente' };
   }
 
   @Delete('project/:projectId/all')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Eliminar todos los indicadores de un proyecto (solo admin)',
+    summary: 'Eliminar todas las ejecuciones de un proyecto',
+    description:
+      'Elimina permanentemente TODOS los indicadores y ejecuciones históricas de un proyecto. Útil para limpiar datos de prueba. Solo usuarios ADMIN pueden realizar esta acción.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Indicadores eliminados exitosamente',
+    description:
+      'Todas las ejecuciones del proyecto fueron eliminadas exitosamente. Retorna el número de registros eliminados.',
   })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado con el ID proporcionado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   async removeAllByProject(
     @Param('projectId') projectId: string,
   ): Promise<{ message: string; count: number }> {
     const count = await this.service.deleteAllByProject(projectId);
-    return { message: 'All test runs deleted successfully', count };
+    return {
+      message: 'Todas las ejecuciones fueron eliminadas exitosamente',
+      count,
+    };
   }
 }

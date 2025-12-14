@@ -5,10 +5,14 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 @Controller()
 export class HealthController {
   @Get('health')
-  @ApiOperation({ summary: 'Health check endpoint' })
+  @ApiOperation({
+    summary: 'Verificar estado del servicio',
+    description:
+      'Endpoint para verificar que el servicio está activo y funcionando correctamente. Usado por AWS ECS para health checks.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Service is healthy',
+    description: 'Servicio operativo y saludable',
     schema: {
       type: 'object',
       properties: {

@@ -32,10 +32,15 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todos los proyectos con métricas' })
+  @ApiOperation({
+    summary: 'Obtener todos los proyectos con métricas calculadas',
+    description:
+      'Retorna la lista completa de proyectos con métricas agregadas: tasas de éxito promedio, cobertura de código, duración promedio de ejecuciones, vulnerabilidades, y tiempos de respuesta para cada pipeline (regression, security, performance).',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Lista de proyectos con métricas calculadas',
+    description:
+      'Lista de proyectos con métricas calculadas automáticamente desde los indicadores históricos',
     type: [ProjectWithMetricsDto],
   })
   findAll(): Promise<ProjectWithMetricsDto[]> {
@@ -43,9 +48,16 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener un proyecto por ID' })
-  @ApiResponse({ status: 200, description: 'Proyecto encontrado' })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
+  @ApiOperation({
+    summary: 'Obtener detalles de un proyecto',
+    description:
+      'Retorna la información básica de un proyecto específico (sin métricas calculadas). Para obtener métricas use el endpoint GET /projects.',
+  })
+  @ApiResponse({ status: 200, description: 'Proyecto encontrado exitosamente' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado con el ID proporcionado',
+  })
   findOne(@Param('id') id: string): Promise<Project> {
     return this.projectsService.findById(id);
   }
@@ -53,15 +65,30 @@ export class ProjectsController {
   @Post()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Crear un nuevo proyecto (solo admin)' })
-  @ApiResponse({ status: 201, description: 'Proyecto creado exitosamente' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Crear un nuevo proyecto',
+    description:
+      'Crea un nuevo proyecto/producto en el sistema. Cada proyecto puede tener múltiples ejecuciones de pruebas asociadas. Solo usuarios ADMIN pueden crear proyectos.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Proyecto creado exitosamente en la base de datos',
+  })
   @ApiResponse({
     status: 409,
-    description: 'El proyecto ya existe (product o prefix duplicado)',
+    description:
+      'Conflicto - Ya existe un proyecto con el mismo nombre (product) o prefijo (prefix)',
   })
-  @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos o incompletos',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   create(@Body() createProjectDto: CreateProjectDto): Promise<Project> {
     return this.projectsService.create(createProjectDto);
   }
@@ -69,15 +96,31 @@ export class ProjectsController {
   @Post('bulk')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Crear múltiples proyectos a la vez (solo admin)' })
-  @ApiResponse({ status: 201, description: 'Proyectos creados exitosamente' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Crear múltiples proyectos simultáneamente',
+    description:
+      'Permite crear varios proyectos en una sola operación. Útil para inicialización masiva o migración de datos. Solo usuarios ADMIN pueden realizar esta operación.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Todos los proyectos fueron creados exitosamente',
+  })
   @ApiResponse({
     status: 409,
-    description: 'Algunos proyectos ya existen o hay duplicados en la petición',
+    description:
+      'Conflicto - Algunos proyectos ya existen o hay duplicados en la petición (product o prefix)',
   })
-  @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos de entrada inválidos o incompletos en uno o más proyectos',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   createMany(
     @Body() createManyProjectsDto: CreateManyProjectsDto,
   ): Promise<Project[]> {
@@ -87,16 +130,25 @@ export class ProjectsController {
   @Put(':id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Actualizar completamente un proyecto (solo admin)',
+    summary: 'Actualizar completamente un proyecto',
+    description:
+      'Reemplaza TODOS los campos del proyecto. Se deben enviar todos los campos obligatorios. Para actualizaciones parciales use PATCH. Solo usuarios ADMIN pueden actualizar proyectos.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Proyecto actualizado exitosamente',
+    description: 'Proyecto actualizado exitosamente con los nuevos valores',
   })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado con el ID proporcionado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   update(
     @Param('id') id: string,
     @Body() updateProjectDto: UpdateProjectDto,
@@ -107,14 +159,25 @@ export class ProjectsController {
   @Patch(':id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Actualizar parcialmente un proyecto (solo admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Actualizar parcialmente un proyecto',
+    description:
+      'Actualiza solo los campos especificados del proyecto. Los campos no enviados mantendrán su valor actual. Solo usuarios ADMIN pueden actualizar proyectos.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Proyecto actualizado exitosamente',
+    description: 'Proyecto actualizado exitosamente con los campos modificados',
   })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado con el ID proporcionado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   partialUpdate(
     @Param('id') id: string,
     @Body() updateProjectDto: UpdateProjectDto,
@@ -125,13 +188,28 @@ export class ProjectsController {
   @Delete(':id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Eliminar un proyecto (solo admin)' })
-  @ApiResponse({ status: 200, description: 'Proyecto eliminado exitosamente' })
-  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
-  @ApiResponse({ status: 403, description: 'No tienes permisos (solo admin)' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Eliminar un proyecto',
+    description:
+      'Elimina permanentemente un proyecto. ADVERTENCIA: Esto también eliminará todos los indicadores y ejecuciones asociadas al proyecto. Solo usuarios ADMIN pueden eliminar proyectos.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Proyecto eliminado exitosamente junto con todas sus ejecuciones',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto no encontrado con el ID proporcionado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Se requiere rol de administrador',
+  })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   async remove(@Param('id') id: string): Promise<{ message: string }> {
     await this.projectsService.delete(id);
-    return { message: 'Project deleted successfully' };
+    return { message: 'Proyecto eliminado exitosamente' };
   }
 }
