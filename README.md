@@ -30,46 +30,125 @@ A robust NestJS-based REST API for managing QA projects, test run indicators, an
 
 ## 📋 Prerequisites
 
-- Node.js (v18 or higher)
+- Node.js (v20 or higher)
 - npm or yarn
+- Docker (for local containerization)
+- AWS CLI (for cloud deployment)
 
-## Description
+## 🚀 Quick Start
 
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
+### Local Development
 
 ```bash
-# development
-$ npm run start
+# Install dependencies
+npm install
 
-# watch mode
-$ npm run start:dev
+# Run in development mode
+npm run start:dev
 
-# production mode
-$ npm run start:prod
+# Run tests
+npm run test
+
+# Build for production
+npm run build
 ```
 
-## Run tests
+### Using Docker
 
 ```bash
-# unit tests
-$ npm run test
+# Build Docker image
+docker build -t kata-backend:local .
 
-# e2e tests
-$ npm run test:e2e
+# Run container
+docker run -p 3000:3000 --env-file .env.qa kata-backend:local
 
-# test coverage
-$ npm run test:cov
+# Access API
+open http://localhost:3000/api
 ```
 
-## Deployment
+### Environment Configuration
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Create environment files for each environment:
+
+```bash
+# .env.qa - QA environment
+# .env.staging - Staging environment  
+# .env.production - Production environment
+```
+
+See `.env.qa` for example configuration.
+
+## 🏃 Running the Application
+
+```bash
+# Development mode (with hot reload)
+npm run start:dev
+
+# Production mode
+npm run start:prod
+
+# Debug mode
+npm run start:debug
+```
+
+## 🧪 Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+
+# Watch mode
+npm run test:watch
+```
+
+## 📦 Deployment
+
+This project is configured for deployment to AWS ECS/Fargate with support for multiple environments (QA, Staging, Production).
+
+### Deployment Documentation
+
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Comprehensive deployment guide with AWS setup
+- **[AWS_SETUP.md](./AWS_SETUP.md)** - Quick reference for AWS configuration
+
+### Quick Deploy
+
+```bash
+# Local build and test
+./ci-cd/local-build.sh qa
+
+# Deploy to environment (creates git tag and triggers pipeline)
+./ci-cd/deploy.sh
+```
+
+### Manual Deployment Steps
+
+1. **Configure AWS Resources** (first time only)
+   - See [AWS_SETUP.md](./AWS_SETUP.md) for detailed instructions
+   - Set up VPC, RDS, ECS, ECR, IAM roles
+   - Configure SSM parameters with secrets
+
+2. **Build and Push Docker Image**
+   ```bash
+   docker build -t kata-backend .
+   docker tag kata-backend:latest YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
+   docker push YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
+   ```
+
+3. **Deploy to ECS**
+   - Pipeline automatically deploys on git tag push
+   - Or manually update ECS service via AWS Console
+
+### Environment-Specific Buildspecs
+
+- `buildspec.yml` - Production deployment
+- `pipeline/buildspecs/buildspec.qa.yml` - QA deployment
+- `pipeline/buildspecs/buildspec.staging.yml` - Staging deployment
 
 If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
 

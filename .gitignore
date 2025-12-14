@@ -1,9 +1,21 @@
-# compiled output
-/dist
-/node_modules
-/build
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+.pnp
+.pnp.js
 
+# ==========================================
+# Build Output
+# ==========================================
+/dist
+/build
+*.tsbuildinfo
+.nest/
+
+# ==========================================
 # Logs
+# ==========================================
 logs
 *.log
 npm-debug.log*
@@ -12,46 +24,142 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# OS
-.DS_Store
+# ==========================================
+# Environment Variables (IMPORTANT!)
+# ==========================================
+.env
+.env.*
 
-# Tests
+# ONLY keep the template - all others excluded for security
+!.env.example
+
+# ==========================================
+# Database
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+db.sqlite
+database.sqlite
+
+# ==========================================
+# Testing
+# ==========================================
 /coverage
 /.nyc_output
+/test-results/
+junit.xml
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# ==========================================
+# OS Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
 
-# IDE - VSCode
+# ==========================================
+# IDEs and Editors
+# ==========================================
+# VSCode
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+*.code-workspace
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-.env.example
+# IntelliJ / WebStorm
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
 
-# temp directory
+# Eclipse
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# ==========================================
+# Temporary Files
+# ==========================================
 .temp
 .tmp
+*.tmp
+*.temp
 
-# Runtime data
+# ==========================================
+# Runtime Data
+# ==========================================
 pids
 *.pid
 *.seed
 *.pid.lock
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
+# ==========================================
+# Diagnostic Reports
+# ==========================================
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ==========================================
+# AWS / Deployment (KEEP TEMPLATES!)
+# ==========================================
+# Keep deployment configuration templates
+!buildspec.yml
+!pipeline/
+!task-definition.json
+!ci-cd/
+
+# But ignore any local deployment artifacts
+.aws-sam/
+samconfig.toml
+
+# ==========================================
+# Docker (local only)
+# ==========================================
+# Keep Dockerfile and docker-compose
+!Dockerfile*
+!docker-compose*.yml
+!.dockerignore
+
+# But ignore local docker volumes/data
+docker-data/
+volumes/
+
+# ==========================================
+# Backup Files
+# ==========================================
+*.bak
+*.backup
+*.old
+*~
+
+# ==========================================
+# Lock Files (KEEP package-lock.json!)
+# ==========================================
+# Keep package-lock.json for reproducible builds
+!package-lock.json
+
+# But ignore other lock files if not using them
+# yarn.lock
+# pnpm-lock.yaml

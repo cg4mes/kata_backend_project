@@ -1,0 +1,6 @@
+projectKey=kata_backend_project
+serverUrl=http://localhost:9000
+serverVersion=9.8.0.63668
+dashboardUrl=http://localhost:9000/dashboard?id=kata_backend_project
+ceTaskId=AZsdBLAou_0ywUFdD6G2
+ceTaskUrl=http://localhost:9000/api/ce/task?id=AZsdBLAou_0ywUFdD6G2

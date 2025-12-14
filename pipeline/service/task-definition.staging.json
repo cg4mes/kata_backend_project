@@ -1,0 +1,101 @@
+{
+  "family": "kata-backend-staging",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "networkMode": "awsvpc",
+  "taskRoleArn": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/kata-backend-ecs-task-role",
+  "executionRoleArn": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/kata-backend-ecs-execution-role",
+  "containerDefinitions": [
+    {
+      "name": "kata-backend",
+      "image": "${image_url}",
+      "essential": true,
+      "cpu": 256,
+      "memory": 1024,
+      "memoryReservation": 512,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "DB_TYPE",
+          "value": "postgres"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DB_SYNCHRONIZE",
+          "value": "false"
+        },
+        {
+          "name": "DB_LOGGING",
+          "value": "false"
+        },
+        {
+          "name": "JWT_EXPIRATION",
+          "value": "24h"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/db_host"
+        },
+        {
+          "name": "DB_USERNAME",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/db_username"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/db_password"
+        },
+        {
+          "name": "DB_DATABASE",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/db_database"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/jwt_secret"
+        },
+        {
+          "name": "CORS_ORIGIN",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/cors_origin"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/ecs/kata-backend-staging",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "mode": "non-blocking",
+          "max-buffer-size": "25m"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
