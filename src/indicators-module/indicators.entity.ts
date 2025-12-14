@@ -15,7 +15,7 @@ export class Indicators {
   @Column()
   pipelineType: string; // 'regression' | 'security' | 'performance'
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' }) //timestamp
   runDate: Date;
 
   // Métricas de Regression

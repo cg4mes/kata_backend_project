@@ -250,12 +250,27 @@ GET    /health                  # Health check endpoint
 
 ## 📦 Despliegue
 
-Este proyecto está configurado para despliegue en **AWS ECS/Fargate** con soporte para múltiples entornos.
+Este proyecto está configurado para despliegue en **AWS ECS/Fargate** con Docker.
 
-### 📖 Documentación de Despliegue
+### 🏗️ Arquitectura de Despliegue
 
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Guía completa de despliegue con configuración paso a paso en AWS
-- **[AWS_SETUP.md](./AWS_SETUP.md)** - Referencia rápida y estimaciones de costos
+```
+┌─────────────┐      ┌──────────────┐      ┌─────────┐
+│   GitHub    │─────▶│  CodeBuild   │─────▶│   ECR   │
+│  (Source)   │      │(Build Docker)│      │ Registry│
+└─────────────┘      └──────────────┘      └────┬────┘
+                                                  │
+                                                  ▼
+                                           ┌─────────────┐
+                                           │     ECS     │
+                                           │  (Fargate)  │
+                                           └─────────────┘
+                                                  │
+                                           ┌──────▼───────┐
+                                           │  PostgreSQL  │
+                                           │     RDS      │
+                                           └──────────────┘
+```
 
 ### 🚀 Despliegue Rápido
 
@@ -287,15 +302,80 @@ Este proyecto está configurado para despliegue en **AWS ECS/Fargate** con sopor
 
 3. **Configurar Secretos en AWS SSM Parameter Store**
    ```bash
-   aws ssm put-parameter --name /kata-backend/qa/db-password --value "TU_CONTRASEÑA" --type SecureString
-   aws ssm put-parameter --name /kata-backend/qa/jwt-secret --value "TU_SECRETO_JWT" --type SecureString
+   # QA Environment
+   aws ssm put-parameter --name /kata/qa/db_host --value "tu-db-qa.rds.amazonaws.com" --type String
+   aws ssm put-parameter --name /kata/qa/db_username --value "kata_user" --type String
+   aws ssm put-parameter --name /kata/qa/db_password --value "PASSWORD_SEGURO" --type SecureString
+   aws ssm put-parameter --name /kata/qa/db_database --value "kata_qa" --type String
+   aws ssm put-parameter --name /kata/qa/jwt_secret --value "JWT_SECRET_SEGURO" --type SecureString
+   aws ssm put-parameter --name /kata/qa/cors_origin --value "https://qa-frontend.com" --type String
+   aws ssm put-parameter --name /kata/qa/internal_token --value "TOKEN_INTERNO" --type SecureString
+   
+   # Repetir para staging y production
+   ```
+
+4. **Construir y Subir Imagen Docker**
+   ```bash
+   # Login a ECR
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+   
+   # Construir imagen
+   docker build -t kata-backend:qa .
+   
+   # Etiquetar y subir a ECR
+   docker tag kata-backend:qa ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
+   docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
    ```
 
 ### 🌍 Entornos
 
-- **QA**: `pipeline/buildspecs/buildspec.qa.yml` + `pipeline/service/task-definition.qa.json`
-- **Staging**: `pipeline/buildspecs/buildspec.staging.yml` + `pipeline/service/task-definition.staging.json`
-- **Producción**: `buildspec.yml` + `task-definition.json`
+| Ambiente   | ECR Repository    | ECS Service                      | Branch    |
+|------------|-------------------|----------------------------------|-----------|
+| QA         | `kata-backend`    | `kata-backend-qa-service`       | `develop` |
+| Staging    | `kata-backend`    | `kata-backend-staging-service`  | `staging` |
+| Production | `kata-backend`    | `kata-backend-production-service`| `main`   |
+
+### 🔄 Proceso de Despliegue Automático
+
+#### Via CodeBuild (AWS CodePipeline)
+
+1. Push a branch específico activa el pipeline
+2. CodeBuild ejecuta el buildspec correspondiente:
+   - `buildspec.yml` (producción)
+   - `pipeline/buildspecs/buildspec.qa.yml`
+   - `pipeline/buildspecs/buildspec.staging.yml`
+3. CodeBuild construye imagen Docker
+4. Imagen se sube a ECR
+5. Task definition de ECS se actualiza
+6. ECS despliega el nuevo contenedor
+
+#### Via GitHub Actions
+
+Workflows configurados:
+- `.github/workflows/deploy-production.yml` → main branch
+- `.github/workflows/deploy-qa.yml` → develop branch
+- `.github/workflows/deploy-staging.yml` → staging branch
+
+### ⚠️ Notas Importantes
+
+**Secrets Management**: Todas las credenciales sensibles (DB passwords, JWT secrets) se almacenan en AWS Systems Manager Parameter Store y se inyectan en tiempo de ejecución.
+
+**Health Checks**: El endpoint `/health` es usado por ECS para verificar que el contenedor está saludable. Si falla, ECS automáticamente reemplaza el contenedor.
+
+**Database Migrations**: Asegúrate de ejecutar migraciones manualmente antes del despliegue si `DB_SYNCHRONIZE=false`.
+
+### 💰 Estimación de Costos (Mensual)
+
+| Servicio      | Costo Estimado |
+|---------------|----------------|
+| ECS Fargate   | ~$25-40       |
+| RDS (t3.micro)| ~$15-20       |
+| ECR Storage   | ~$1-2         |
+| ALB           | ~$20          |
+| CodeBuild     | ~$2-5         |
+| **Total**     | **~$65-90/mes** |
+
+*Basado en uso moderado con 1 tarea Fargate (0.5 vCPU, 1GB RAM) por ambiente.*
 
 ## 🔐 Variables de Entorno
 

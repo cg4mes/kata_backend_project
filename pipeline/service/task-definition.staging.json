@@ -74,6 +74,10 @@
         {
           "name": "CORS_ORIGIN",
           "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/cors_origin"
+        },
+        {
+          "name": "INTERNAL_TOKEN",
+          "valueFrom": "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/kata/staging/internal_token"
         }
       ],
       "logConfiguration": {
@@ -85,16 +89,6 @@
           "mode": "non-blocking",
           "max-buffer-size": "25m"
         }
-      },
-      "healthCheck": {
-        "command": [
-          "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"
-        ],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
       }
     }
   ]
