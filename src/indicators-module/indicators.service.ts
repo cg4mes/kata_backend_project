@@ -169,25 +169,4 @@ export class IndicatorsService {
 
     return indicators.length;
   }
-
-  /**
-   * Finds a project by its product name
-   * @param teamName - Project/team name
-   * @returns Project entity
-   * @throws NotFoundException if project doesn't exist
-   * @private
-   */
-  private async findProjectByName(teamName: string): Promise<Project> {
-    const project = await this.projectRepo.findOne({
-      where: { product: teamName },
-    });
-
-    if (!project) {
-      throw new NotFoundException(
-        `${ERROR_MESSAGES.PROJECT_NOT_FOUND}: ${teamName}`,
-      );
-    }
-
-    return project;
-  }
 }

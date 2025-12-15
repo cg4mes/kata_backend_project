@@ -13,7 +13,7 @@ export class LambdaIngestionDto {
     example: 'QA Team Alpha',
   })
   @IsString()
-  teamName: string;
+  teamName!: string;
 
   @ApiProperty({
     description: 'Tipo de pipeline de pruebas ejecutado',
@@ -21,14 +21,14 @@ export class LambdaIngestionDto {
     example: 'regression',
   })
   @IsEnum(['regression', 'security', 'performance'])
-  pipelineType: 'regression' | 'security' | 'performance';
+  pipelineType!: 'regression' | 'security' | 'performance';
 
   @ApiProperty({
     description: 'Fecha y hora de ejecución en formato ISO 8601 (UTC)',
     example: '2025-12-14T21:30:00.000Z',
   })
   @IsISO8601()
-  timestamp: string;
+  timestamp!: string;
 
   // Métricas de pruebas de regresión
   @ApiPropertyOptional({

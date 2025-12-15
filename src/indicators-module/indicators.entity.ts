@@ -4,74 +4,74 @@ import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 @Entity()
 export class Indicators {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @ManyToOne(() => Project, (project) => project.indicators)
-  project: Project;
+  project!: Project;
 
   @Column()
-  projectId: string;
+  projectId!: string;
 
   @Column()
-  pipelineType: string; // 'regression' | 'security' | 'performance'
+  pipelineType!: string; // 'regression' | 'security' | 'performance'
 
   @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' }) //timestamp
-  runDate: Date;
+  runDate!: Date;
 
   // Métricas de Regression
   @Column('int', { nullable: true })
-  totalTests: number;
+  totalTests!: number;
 
   @Column('int', { nullable: true })
-  passed: number;
+  passed!: number;
 
   @Column('int', { nullable: true })
-  failed: number;
+  failed!: number;
 
   @Column('int', { nullable: true })
-  skipped: number;
+  skipped!: number;
 
   @Column('float', { nullable: true })
-  executionSuccessRate: number;
+  executionSuccessRate!: number;
 
   @Column('float', { nullable: true })
-  automationCoverage: number;
+  automationCoverage!: number;
 
   // Métricas de Performance
   @Column('int', { nullable: true })
-  totalRequest: number;
+  totalRequest!: number;
 
   @Column('int', { nullable: true })
-  okRequest: number;
+  okRequest!: number;
 
   @Column('int', { nullable: true })
-  koRequest: number;
+  koRequest!: number;
 
   @Column('float', { nullable: true })
-  timeMean: number;
+  timeMean!: number;
 
   @Column('float', { nullable: true })
-  timeMax: number;
+  timeMax!: number;
 
   @Column('float', { nullable: true })
-  timeMin: number;
+  timeMin!: number;
 
   @Column('float', { nullable: true })
-  errorRate: number;
+  errorRate!: number;
 
   // Métricas de Security
   @Column('int', { nullable: true })
-  high: number;
+  high!: number;
 
   @Column('int', { nullable: true })
-  medium: number;
+  medium!: number;
 
   @Column('int', { nullable: true })
-  low: number;
+  low!: number;
 
   @Column('int', { nullable: true })
-  informational: number;
+  informational!: number;
 
   @Column('float', { nullable: true })
-  securityScore: number;
+  securityScore!: number;
 }

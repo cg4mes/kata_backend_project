@@ -12,25 +12,25 @@ import {
 @Entity()
 export class Project {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ unique: true })
   @Index()
-  product: string;
+  product!: string;
 
   @Column({ unique: true })
   @Index()
-  prefix: string;
+  prefix!: string;
 
   @Column({ type: 'int' })
-  totalDefinedTests: number;
+  totalDefinedTests!: number;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(() => Indicators, (indicator) => indicator.project)
-  indicators: Indicators[];
+  indicators!: Indicators[];
 }

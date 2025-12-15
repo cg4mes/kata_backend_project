@@ -157,47 +157,6 @@ export class ProjectsService {
     return this.projectRepository.save(newProject);
   }
 
-  // Crea múltiples equipos de una vez
-  async createMany(teams: CreateProjectDto[]): Promise<Project[]> {
-    // Verificar duplicados en los datos entrantes
-    const products = teams.map((t) => t.product);
-    const prefixes = teams.map((t) => t.prefix);
-
-    const duplicateProducts = products.filter(
-      (item, index) => products.indexOf(item) !== index,
-    );
-    const duplicatePrefixes = prefixes.filter(
-      (item, index) => prefixes.indexOf(item) !== index,
-    );
-
-    if (duplicateProducts.length > 0 || duplicatePrefixes.length > 0) {
-      throw new ConflictException(
-        'Duplicate products or prefixes found in request',
-      );
-    }
-
-    // Verificar si algún proyecto ya existe en la base de datos
-    const whereConditions = [
-      ...products.map((product) => ({ product })),
-      ...prefixes.map((prefix) => ({ prefix })),
-    ];
-    const existingProjects = await this.projectRepository.find({
-      where: whereConditions,
-    });
-
-    if (existingProjects.length > 0) {
-      const conflicts = existingProjects
-        .map((p) => `${p.product} (${p.prefix})`)
-        .join(', ');
-      throw new ConflictException(
-        `The following projects already exist: ${conflicts}`,
-      );
-    }
-
-    const newProjects = this.projectRepository.create(teams);
-    return this.projectRepository.save(newProjects);
-  }
-
   // Actualiza completamente un equipo (PUT)
   async update(
     id: string,

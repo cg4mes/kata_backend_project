@@ -15,7 +15,7 @@ export class CreateUserDto {
   })
   @IsString()
   @MinLength(3)
-  username: string;
+  username!: string;
 
   @ApiProperty({
     example: 'john@example.com',
@@ -23,7 +23,7 @@ export class CreateUserDto {
       'Dirección de correo electrónico única (usado para autenticación)',
   })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: 'SecurePass123!',
@@ -32,7 +32,7 @@ export class CreateUserDto {
   })
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({
     enum: UserRole,
@@ -51,14 +51,14 @@ export class LoginDto {
     description: 'Dirección de correo electrónico del usuario registrado',
   })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: 'SecurePass123!',
     description: 'Contraseña del usuario (debe coincidir con la registrada)',
   })
   @IsString()
-  password: string;
+  password!: string;
 }
 
 export class UpdateUserRoleDto {
@@ -69,30 +69,30 @@ export class UpdateUserRoleDto {
     example: UserRole.ADMIN,
   })
   @IsEnum(UserRole)
-  role: UserRole;
+  role!: UserRole;
 }
 
 export class UserResponseDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  username: string;
+  username!: string;
 
   @ApiProperty()
-  email: string;
+  email!: string;
 
   @ApiProperty({ enum: UserRole })
-  role: UserRole;
+  role!: UserRole;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 export class LoginResponseDto {
   @ApiProperty()
-  access_token: string;
+  access_token!: string;
 
   @ApiProperty({ type: UserResponseDto })
-  user: UserResponseDto;
+  user!: UserResponseDto;
 }

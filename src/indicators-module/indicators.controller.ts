@@ -69,6 +69,8 @@ export class IndicatorsController {
   }
 
   @Get()
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Obtener todas las ejecuciones de un proyecto',
     description:
@@ -84,6 +86,7 @@ export class IndicatorsController {
     status: 200,
     description: 'Lista de indicadores ordenados por fecha de ejecución',
   })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   findByProject(@Query('projectId') projectId: string) {
     return this.service.findByProject(projectId);
   }

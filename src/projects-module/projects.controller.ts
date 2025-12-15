@@ -19,7 +19,6 @@ import { ProjectsService } from './projects.service';
 import { Project } from './projects.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
-import { CreateManyProjectsDto } from './dto/create-many-projects.dto';
 import { ProjectWithMetricsDto } from './dto/project-with-metrics.dto';
 import { AuthGuard } from '../users-module/guards/auth.guard';
 import { RolesGuard } from '../users-module/guards/roles.guard';
@@ -32,6 +31,8 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Obtener todos los proyectos con métricas calculadas',
     description:
@@ -43,11 +44,14 @@ export class ProjectsController {
       'Lista de proyectos con métricas calculadas automáticamente desde los indicadores históricos',
     type: [ProjectWithMetricsDto],
   })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   findAll(): Promise<ProjectWithMetricsDto[]> {
     return this.projectsService.findAllWithMetrics();
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Obtener detalles de un proyecto',
     description:
@@ -58,6 +62,7 @@ export class ProjectsController {
     status: 404,
     description: 'Proyecto no encontrado con el ID proporcionado',
   })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   findOne(@Param('id') id: string): Promise<Project> {
     return this.projectsService.findById(id);
   }
@@ -91,40 +96,6 @@ export class ProjectsController {
   @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   create(@Body() createProjectDto: CreateProjectDto): Promise<Project> {
     return this.projectsService.create(createProjectDto);
-  }
-
-  @Post('bulk')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({
-    summary: 'Crear múltiples proyectos simultáneamente',
-    description:
-      'Permite crear varios proyectos en una sola operación. Útil para inicialización masiva o migración de datos. Solo usuarios ADMIN pueden realizar esta operación.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Todos los proyectos fueron creados exitosamente',
-  })
-  @ApiResponse({
-    status: 409,
-    description:
-      'Conflicto - Algunos proyectos ya existen o hay duplicados en la petición (product o prefix)',
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Datos de entrada inválidos o incompletos en uno o más proyectos',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Acceso denegado - Se requiere rol de administrador',
-  })
-  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
-  createMany(
-    @Body() createManyProjectsDto: CreateManyProjectsDto,
-  ): Promise<Project[]> {
-    return this.projectsService.createMany(createManyProjectsDto.teams);
   }
 
   @Put(':id')

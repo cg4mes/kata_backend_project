@@ -7,7 +7,7 @@ export class CreateProjectDto {
     example: 'Portal Web',
   })
   @IsString()
-  product: string;
+  product!: string;
 
   @ApiProperty({
     description:
@@ -15,7 +15,7 @@ export class CreateProjectDto {
     example: 'PW',
   })
   @IsString()
-  prefix: string;
+  prefix!: string;
 
   @ApiProperty({
     description:
@@ -24,5 +24,5 @@ export class CreateProjectDto {
   })
   @IsNumber()
   @IsPositive()
-  totalDefinedTests: number;
+  totalDefinedTests!: number;
 }

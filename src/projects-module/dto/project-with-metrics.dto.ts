@@ -2,13 +2,13 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ProjectMetricsDto {
   @ApiProperty({ description: 'Promedio de tasa de éxito (regression)' })
-  averageSuccessRate: number;
+  averageSuccessRate!: number;
 
   @ApiProperty({ description: 'Cobertura actual (regression)' })
-  currentCoverage: number;
+  currentCoverage!: number;
 
   @ApiProperty({ description: 'Cantidad de test runs' })
-  testRunsCount: number;
+  testRunsCount!: number;
 
   @ApiProperty({
     description: 'Promedio de error rate (performance)',
@@ -25,23 +25,23 @@ export class ProjectMetricsDto {
 
 export class ProjectWithMetricsDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  product: string;
+  product!: string;
 
   @ApiProperty()
-  prefix: string;
+  prefix!: string;
 
   @ApiProperty()
-  totalDefinedTests: number;
+  totalDefinedTests!: number;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @ApiProperty({ type: ProjectMetricsDto })
-  metrics: ProjectMetricsDto;
+  metrics!: ProjectMetricsDto;
 }
