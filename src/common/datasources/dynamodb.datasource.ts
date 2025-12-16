@@ -14,6 +14,15 @@ import {
   UpdateCommandOutput,
 } from '@aws-sdk/lib-dynamodb';
 import { Injectable, Logger } from '@nestjs/common';
+import { DynamoDBClientConfig } from '@aws-sdk/client-dynamodb';
+
+interface LocalDynamoDBConfig extends DynamoDBClientConfig {
+  endpoint?: string;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  };
+}
 
 @Injectable()
 export class DynamoDBDatasource {
@@ -30,7 +39,7 @@ export class DynamoDBDatasource {
 
   private createInstance(): void {
     if (!this.dynamoClient && !this.docClient) {
-      const clientConfig: any = {
+      const clientConfig: LocalDynamoDBConfig = {
         region: process.env.AWS_REGION || 'us-east-1',
       };
 
@@ -41,7 +50,9 @@ export class DynamoDBDatasource {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'local',
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'local',
         };
-        this.logger.log(`Using DynamoDB Local at ${process.env.DYNAMO_ENDPOINT}`);
+        this.logger.log(
+          `Using DynamoDB Local at ${process.env.DYNAMO_ENDPOINT}`,
+        );
       }
 
       this.dynamoClient = new DynamoDBClient(clientConfig);
@@ -69,9 +80,10 @@ export class DynamoDBDatasource {
         new GetCommand(params),
       );
       return result.Item || null;
-    } catch (error: any) {
-      this.logger.error(`Error getting item: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error getting item: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -87,9 +99,10 @@ export class DynamoDBDatasource {
 
       await this.docClient.send(new PutCommand(params));
       this.logger.debug(`Item created/updated: PK=${item.PK}, SK=${item.SK}`);
-    } catch (error: any) {
-      this.logger.error(`Error putting item: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error putting item: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -120,7 +133,7 @@ export class DynamoDBDatasource {
         expressionAttributeValues[':sk2'] = options.skBetween[1];
       }
 
-      const params: any = {
+      const params: Record<string, any> = {
         TableName: this.tableName,
         KeyConditionExpression: keyConditionExpression,
         ExpressionAttributeValues: expressionAttributeValues,
@@ -140,12 +153,13 @@ export class DynamoDBDatasource {
       }
 
       const result: QueryCommandOutput = await this.docClient.send(
-        new QueryCommand(params),
+        new QueryCommand(params as any),
       );
       return result.Items || [];
-    } catch (error: any) {
-      this.logger.error(`Error querying items: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error querying items: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -173,7 +187,7 @@ export class DynamoDBDatasource {
         expressionAttributeValues[':gsiSK'] = options.gsiSK;
       }
 
-      const params: any = {
+      const params: Record<string, any> = {
         TableName: this.tableName,
         IndexName: indexName,
         KeyConditionExpression: keyConditionExpression,
@@ -193,12 +207,13 @@ export class DynamoDBDatasource {
       }
 
       const result: QueryCommandOutput = await this.docClient.send(
-        new QueryCommand(params),
+        new QueryCommand(params as any),
       );
       return result.Items || [];
-    } catch (error: any) {
-      this.logger.error(`Error querying GSI: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error querying GSI: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -212,7 +227,7 @@ export class DynamoDBDatasource {
     limit?: number;
   }): Promise<any[]> {
     try {
-      const params: any = {
+      const params: Record<string, any> = {
         TableName: this.tableName,
       };
 
@@ -226,14 +241,17 @@ export class DynamoDBDatasource {
       }
 
       const result: ScanCommandOutput = await this.docClient.send(
-        new ScanCommand(params),
+        new ScanCommand(params as any),
       );
-      
-      this.logger.debug(`Scanned ${result.Items?.length || 0} items from table`);
+
+      this.logger.debug(
+        `Scanned ${result.Items?.length || 0} items from table`,
+      );
       return result.Items || [];
-    } catch (error: any) {
-      this.logger.error(`Error scanning table: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error scanning table: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -258,12 +276,13 @@ export class DynamoDBDatasource {
           const valueAlias = `:val${index}`;
           updateExpressions.push(`${nameAlias} = ${valueAlias}`);
           expressionAttributeNames[nameAlias] = key;
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           expressionAttributeValues[valueAlias] = value;
           index++;
         }
       }
 
-      const params: any = {
+      const params: Record<string, any> = {
         TableName: this.tableName,
         Key: { PK: pk, SK: sk },
         UpdateExpression: `SET ${updateExpressions.join(', ')}`,
@@ -276,13 +295,14 @@ export class DynamoDBDatasource {
       }
 
       const result: UpdateCommandOutput = await this.docClient.send(
-        new UpdateCommand(params),
+        new UpdateCommand(params as any),
       );
       this.logger.debug(`Item updated: PK=${pk}, SK=${sk}`);
       return result.Attributes || null;
-    } catch (error: any) {
-      this.logger.error(`Error updating item: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error updating item: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -298,9 +318,10 @@ export class DynamoDBDatasource {
 
       await this.docClient.send(new DeleteCommand(params));
       this.logger.debug(`Item deleted: PK=${pk}, SK=${sk}`);
-    } catch (error: any) {
-      this.logger.error(`Error deleting item: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error deleting item: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
@@ -319,9 +340,10 @@ export class DynamoDBDatasource {
 
       await this.docClient.send(new BatchWriteCommand(params));
       this.logger.debug(`Batch write completed: ${items.length} items`);
-    } catch (error: any) {
-      this.logger.error(`Error in batch write: ${error.message}`, error.stack);
-      throw new Error(`Database error: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(`Error in batch write: ${err.message}`, err.stack);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 

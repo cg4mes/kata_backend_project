@@ -29,18 +29,18 @@ export class IndicatorsService {
       throw new NotFoundException(`Project not found: ${dto.teamName}`);
     }
 
-    const project = projects[0];
+    const project = projects[0] as Record<string, any>;
     const id = uuidv4();
     const runDate = new Date(dto.timestamp);
     const timestamp = runDate.getTime(); // Unix timestamp for sorting
 
     // 2) Crear objeto base del indicator
-    const indicatorData: any = {
-      PK: project.PK, // PROJECT#{prefix}
+    const indicatorData: Record<string, any> = {
+      PK: project.PK as string, // PROJECT#{prefix}
       SK: `INDICATOR#${timestamp}#${id}`, // INDICATOR#{timestamp}#{id} para orden cronológico
       EntityType: 'Indicator',
       id,
-      projectId: project.id,
+      projectId: project.id as string,
       pipelineType: dto.pipelineType,
       runDate: runDate.toISOString(),
     };
@@ -62,7 +62,7 @@ export class IndicatorsService {
       const automationCoverage =
         this.metricsCalculator.calculateAutomationCoverage(
           totalTests,
-          project.totalDefinedTests,
+          project.totalDefinedTests as number,
         );
 
       Object.assign(indicatorData, {
@@ -121,7 +121,6 @@ export class IndicatorsService {
    * @returns Array of indicators (limited to 20 most recent)
    */
   async findByProject(projectId: string): Promise<any[]> {
-
     // Buscar el proyecto por id usando scan (igual que ProjectsService)
     const items = await this.dynamodb.scan({
       filter: 'id = :id AND EntityType = :type',
@@ -130,11 +129,11 @@ export class IndicatorsService {
     if (items.length === 0) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
-    const project = items[0];
+    const project = items[0] as Record<string, any>;
 
     // Query indicators by PK (PROJECT#{prefix}), SK begins with INDICATOR#
     // DynamoDB retornará ordenados por SK (timestamp) de forma descendente
-    const indicators = await this.dynamodb.query(project.PK, {
+    const indicators = await this.dynamodb.query(project.PK as string, {
       skBeginsWith: 'INDICATOR#',
       limit: 20,
       scanIndexForward: false, // DESC order
@@ -160,8 +159,8 @@ export class IndicatorsService {
       throw new NotFoundException(ERROR_MESSAGES.INDICATOR_NOT_FOUND);
     }
 
-    const indicator = items[0];
-    await this.dynamodb.delete(indicator.PK, indicator.SK);
+    const indicator = items[0] as Record<string, any>;
+    await this.dynamodb.delete(indicator.PK as string, indicator.SK as string);
     this.logger.log(`Indicator deleted: ${id}`);
   }
 
@@ -182,20 +181,22 @@ export class IndicatorsService {
       throw new NotFoundException(ERROR_MESSAGES.PROJECT_NOT_FOUND);
     }
 
-    const project = projects[0];
+    const project = projects[0] as Record<string, any>;
 
     // Obtener todos los indicators del proyecto
-    const indicators = await this.dynamodb.query(project.PK, {
+    const indicators = await this.dynamodb.query(project.PK as string, {
       skBeginsWith: 'INDICATOR#',
     });
 
     if (indicators.length > 0) {
       // Batch delete usando batchWrite
-      const deleteRequests = indicators.map((indicator) => ({
-        DeleteRequest: {
-          Key: { PK: indicator.PK, SK: indicator.SK },
-        },
-      }));
+      const deleteRequests = indicators.map(
+        (indicator: Record<string, any>) => ({
+          DeleteRequest: {
+            Key: { PK: indicator.PK as string, SK: indicator.SK as string },
+          },
+        }),
+      );
 
       // DynamoDB permite hasta 25 items por batch
       for (let i = 0; i < deleteRequests.length; i += 25) {
@@ -204,7 +205,7 @@ export class IndicatorsService {
       }
 
       this.logger.log(
-        `Deleted ${indicators.length} indicators for project: ${project.product}`,
+        `Deleted ${indicators.length} indicators for project: ${project.product as string}`,
       );
     }
 

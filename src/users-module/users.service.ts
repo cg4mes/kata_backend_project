@@ -8,7 +8,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
-import { UserRole } from './users.entity';
+import { UserRole } from './user-role.enum';
 import {
   CreateUserDto,
   LoginDto,
@@ -82,17 +82,17 @@ export class UsersService {
       throw new UnauthorizedException(ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
-    const user = users[0];
+    const user = users[0] as Record<string, any>;
     const isPasswordValid = await this.validatePassword(
       loginDto.password,
-      user.password,
+      user.password as string,
     );
     if (!isPasswordValid) {
       throw new UnauthorizedException(ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     const access_token = await this.generateToken(user);
-    this.logger.log(`User logged in: ${user.email}`);
+    this.logger.log(`User logged in: ${user.email as string}`);
 
     return {
       access_token,
@@ -138,9 +138,10 @@ export class UsersService {
   ): Promise<UserResponseDto> {
     const user = await this.findUserById(id);
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updatedUser = await this.dynamodb.update(
-      user.PK,
-      user.SK,
+      user.PK as string,
+      user.SK as string,
       {
         role: updateUserRoleDto.role,
         updatedAt: new Date().toISOString(),
@@ -149,9 +150,9 @@ export class UsersService {
     );
 
     this.logger.log(
-      `User role updated: ${user.email} -> ${updateUserRoleDto.role}`,
+      `User role updated: ${user.email as string} -> ${updateUserRoleDto.role}`,
     );
-    return this.toUserResponse(updatedUser);
+    return this.toUserResponse(updatedUser as Record<string, any>);
   }
 
   /**
@@ -161,7 +162,7 @@ export class UsersService {
    */
   async remove(id: string): Promise<void> {
     const user = await this.findUserById(id);
-    await this.dynamodb.delete(user.PK, user.SK);
+    await this.dynamodb.delete(user.PK as string, user.SK as string);
     this.logger.log(`User deleted: ${id}`);
   }
 
@@ -170,13 +171,15 @@ export class UsersService {
    * @param id - User ID
    * @returns User entity or null
    */
-  async findById(id: string): Promise<any | null> {
+
+  async findById(id: string): Promise<Record<string, any> | null> {
     // Scan to find by ID since username is PK
     // For better performance in production, consider adding GSI for id lookup
     const items = await this.dynamodb.scan({
       filter: 'id = :id AND EntityType = :type',
       filterValues: { ':id': id, ':type': 'User' },
     });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return items.length > 0 ? items[0] : null;
   }
 
@@ -190,6 +193,7 @@ export class UsersService {
     username: string,
   ): Promise<void> {
     // Check username (PK)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const userByUsername = await this.dynamodb.get(
       `USER#${username}`,
       'METADATA',
@@ -208,7 +212,7 @@ export class UsersService {
   /**
    * Finds user by ID and throws if not found
    */
-  private async findUserById(id: string): Promise<any> {
+  private async findUserById(id: string): Promise<Record<string, any>> {
     const user = await this.findById(id);
     if (!user) {
       throw new NotFoundException(ERROR_MESSAGES.USER_NOT_FOUND);
@@ -236,21 +240,25 @@ export class UsersService {
   /**
    * Generates JWT token for user
    */
-  private async generateToken(user: any): Promise<string> {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+  private async generateToken(user: Record<string, any>): Promise<string> {
+    const payload = {
+      sub: user.id as string,
+      email: user.email as string,
+      role: user.role as string,
+    };
     return this.jwtService.signAsync(payload);
   }
 
   /**
    * Converts User item to UserResponseDto (excluding password)
    */
-  private toUserResponse(user: any): UserResponseDto {
+  private toUserResponse(user: Record<string, any>): UserResponseDto {
     return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt,
+      id: user.id as string,
+      username: user.username as string,
+      email: user.email as string,
+      role: user.role as UserRole,
+      createdAt: new Date(user.createdAt as string),
     };
   }
 }

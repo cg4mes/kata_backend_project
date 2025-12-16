@@ -22,23 +22,28 @@ export class ProjectsService {
     const projects = await this.findAll();
 
     return Promise.all(
-      projects.map(async (project) => {
+      projects.map(async (project: Record<string, any>) => {
         // Usar prefix en lugar de id para calcular métricas
-        const metrics = await this.calculateProjectMetricsByPrefix(project.prefix);
+        const metrics = await this.calculateProjectMetricsByPrefix(
+          project.prefix as string,
+        );
         return this.toProjectWithMetricsDto(project, metrics);
       }),
     );
   }
 
   // Mapea un proyecto de DynamoDB a ProjectWithMetricsDto (solo campos necesarios)
-  private toProjectWithMetricsDto(project: any, metrics: ProjectMetricsDto): ProjectWithMetricsDto {
+  private toProjectWithMetricsDto(
+    project: Record<string, any>,
+    metrics: ProjectMetricsDto,
+  ): ProjectWithMetricsDto {
     return {
-      id: project.id,
-      product: project.product,
-      prefix: project.prefix,
-      totalDefinedTests: project.totalDefinedTests,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
+      id: project.id as string,
+      product: project.product as string,
+      prefix: project.prefix as string,
+      totalDefinedTests: project.totalDefinedTests as number,
+      createdAt: new Date(project.createdAt as string),
+      updatedAt: new Date(project.updatedAt as string),
       metrics,
     };
   }
@@ -74,42 +79,51 @@ export class ProjectsService {
         averageSecurityScore: 100,
       };
     }
-    
+
     // Ordenar por runDate ascendente
-    indicators.sort((a, b) => new Date(a.runDate).getTime() - new Date(b.runDate).getTime());
+    indicators.sort(
+      (a: Record<string, any>, b: Record<string, any>) =>
+        new Date(a.runDate as string).getTime() -
+        new Date(b.runDate as string).getTime(),
+    );
 
     // Filtrar por tipo de pipeline
     const regressionIndicators = indicators.filter(
-      (i) => i.pipelineType === 'regression',
+      (i: Record<string, any>) => i.pipelineType === 'regression',
     );
     const performanceIndicators = indicators.filter(
-      (i) => i.pipelineType === 'performance',
+      (i: Record<string, any>) => i.pipelineType === 'performance',
     );
     const securityIndicators = indicators.filter(
-      (i) => i.pipelineType === 'security',
+      (i: Record<string, any>) => i.pipelineType === 'security',
     );
 
     // Calcular métricas de regression
     let averageSuccessRate = 0;
     let currentCoverage = 0;
     if (regressionIndicators.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const totalSuccessRate = regressionIndicators.reduce(
-        (sum, indicator) => sum + (indicator.executionSuccessRate ?? 0),
+        (sum: number, indicator: Record<string, any>) =>
+          sum + Number(indicator.executionSuccessRate || 0),
         0,
       );
       averageSuccessRate = totalSuccessRate / regressionIndicators.length;
-      currentCoverage =
-        regressionIndicators[regressionIndicators.length - 1]
-          .automationCoverage ?? 0;
+
+      const lastIndicator = regressionIndicators[
+        regressionIndicators.length - 1
+      ] as Record<string, any>;
+
+      currentCoverage = Number(lastIndicator.automationCoverage || 0);
     }
 
     // Calcular métricas de performance
     let averageErrorRate = 0;
     if (performanceIndicators.length > 0) {
       let totalErrorRate = 0;
-      for (const indicator of performanceIndicators) {
+      for (const indicator of performanceIndicators as Record<string, any>[]) {
         if (indicator.errorRate !== null && indicator.errorRate !== undefined) {
-          totalErrorRate += indicator.errorRate;
+          totalErrorRate += Number(indicator.errorRate);
         }
       }
       averageErrorRate = totalErrorRate / performanceIndicators.length;
@@ -119,11 +133,11 @@ export class ProjectsService {
     let averageSecurityScore = 100;
     if (securityIndicators.length > 0) {
       let totalSecurityScore = 0;
-      for (const indicator of securityIndicators) {
+      for (const indicator of securityIndicators as Record<string, any>[]) {
         totalSecurityScore +=
           indicator.securityScore !== null &&
           indicator.securityScore !== undefined
-            ? indicator.securityScore
+            ? Number(indicator.securityScore)
             : 100;
       }
       averageSecurityScore = totalSecurityScore / securityIndicators.length;
@@ -145,7 +159,7 @@ export class ProjectsService {
   }
 
   // Método interno que devuelve el objeto completo de DynamoDB (con PK, SK, etc)
-  private async findByIdInternal(id: string): Promise<any> {
+  private async findByIdInternal(id: string): Promise<Record<string, any>> {
     // Scan para buscar por ID (no es la PK)
     const items = await this.dynamodb.scan({
       filter: 'id = :id AND EntityType = :type',
@@ -156,24 +170,25 @@ export class ProjectsService {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
 
-    return items[0];
+    return items[0] as Record<string, any>;
   }
 
   // Mapea un proyecto de DynamoDB a DTO (solo campos necesarios)
-  private toProjectDto(project: any): any {
+  private toProjectDto(project: Record<string, any>): Record<string, any> {
     return {
-      id: project.id,
-      product: project.product,
-      prefix: project.prefix,
-      totalDefinedTests: project.totalDefinedTests,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
+      id: project.id as string,
+      product: project.product as string,
+      prefix: project.prefix as string,
+      totalDefinedTests: project.totalDefinedTests as number,
+      createdAt: project.createdAt as string,
+      updatedAt: project.updatedAt as string,
     };
   }
 
   // Crea un nuevo equipo
   async create(createProjectDto: CreateProjectDto): Promise<any> {
     // Verificar si ya existe proyecto con el mismo prefix (PK)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const existingByPrefix = await this.dynamodb.get(
       `PROJECT#${createProjectDto.prefix}`,
       'METADATA',
@@ -223,7 +238,7 @@ export class ProjectsService {
   async update(id: string, updateProjectDto: UpdateProjectDto): Promise<any> {
     const project = await this.findByIdInternal(id);
 
-    const updates: any = {
+    const updates: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
 
@@ -231,14 +246,15 @@ export class ProjectsService {
       updates.totalDefinedTests = updateProjectDto.totalDefinedTests;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updatedProject = await this.dynamodb.update(
-      project.PK,
-      project.SK,
+      project.PK as string,
+      project.SK as string,
       updates,
       true,
     );
 
-    return this.toProjectDto(updatedProject);
+    return this.toProjectDto(updatedProject as Record<string, any>);
   }
 
   // Actualiza parcialmente un equipo (PATCH)
@@ -255,22 +271,22 @@ export class ProjectsService {
 
     // Verificar si existen indicadores asociados
     // Los indicators tienen PK=PROJECT#{prefix}, SK=INDICATOR#...
-    const indicators = await this.dynamodb.query(project.PK, {
+    const indicators = await this.dynamodb.query(project.PK as string, {
       skBeginsWith: 'INDICATOR#',
       limit: 1,
     });
 
     if (indicators.length > 0) {
       // Contar todos los indicators para el mensaje
-      const allIndicators = await this.dynamodb.query(project.PK, {
+      const allIndicators = await this.dynamodb.query(project.PK as string, {
         skBeginsWith: 'INDICATOR#',
       });
-      
+
       throw new BadRequestException(
-        `Cannot delete project "${project.product}". It has ${allIndicators.length} test run(s) associated. Please delete all test runs before deleting the project.`,
+        `Cannot delete project "${project.product as string}". It has ${allIndicators.length} test run(s) associated. Please delete all test runs before deleting the project.`,
       );
     }
 
-    await this.dynamodb.delete(project.PK, project.SK);
+    await this.dynamodb.delete(project.PK as string, project.SK as string);
   }
 }

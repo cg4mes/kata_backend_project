@@ -14,12 +14,15 @@ import { RolesGuard } from './guards/roles.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production';
+        const secret =
+          configService.get<string>('JWT_SECRET') ||
+          'your-secret-key-change-in-production';
         const expiresIn = configService.get<string>('JWT_EXPIRATION') || '24h';
         return {
           secret,
-          signOptions: { 
-            expiresIn: expiresIn as any, // Hack temporal para el tipo
+          signOptions: {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            expiresIn: expiresIn as any,
           },
         };
       },

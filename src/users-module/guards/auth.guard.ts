@@ -26,9 +26,13 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const secret = this.configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production';
-      this.logger.debug(`Verifying token with secret: ${secret.substring(0, 10)}...`);
-      
+      const secret =
+        this.configService.get<string>('JWT_SECRET') ||
+        'your-secret-key-change-in-production';
+      this.logger.debug(
+        `Verifying token with secret: ${secret.substring(0, 10)}...`,
+      );
+
       const payload = await this.jwtService.verifyAsync<{
         sub: string;
         email: string;
@@ -37,13 +41,17 @@ export class AuthGuard implements CanActivate {
         secret,
       });
 
-      this.logger.debug(`Token verified successfully for user: ${payload.email}`);
-      
+      this.logger.debug(
+        `Token verified successfully for user: ${payload.email}`,
+      );
+
       // Agregar el payload del usuario al request
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       (request as any)['user'] = payload;
     } catch (error) {
-      this.logger.error(`Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       throw new UnauthorizedException('Token inválido o expirado');
     }
 

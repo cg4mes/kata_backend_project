@@ -25,7 +25,7 @@ import {
 import { AuthGuard } from './guards/auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
-import { UserRole } from './users.entity';
+import { UserRole } from './user-role.enum';
 
 @ApiTags('users')
 @Controller('users')

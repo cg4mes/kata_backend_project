@@ -6,7 +6,7 @@ import {
   IsOptional,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '../users.entity';
+import { UserRole } from '../user-role.enum';
 
 export class CreateUserDto {
   @ApiProperty({

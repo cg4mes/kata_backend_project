@@ -15,14 +15,13 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { Project } from './projects.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectWithMetricsDto } from './dto/project-with-metrics.dto';
 import { AuthGuard } from '../users-module/guards/auth.guard';
 import { RolesGuard } from '../users-module/guards/roles.guard';
 import { Roles } from '../users-module/decorators/roles.decorator';
-import { UserRole } from '../users-module/users.entity';
+import { UserRole } from '../users-module/user-role.enum';
 
 @ApiTags('projects')
 @Controller('projects')
@@ -62,7 +61,7 @@ export class ProjectsController {
     description: 'Proyecto no encontrado con el ID proporcionado',
   })
   @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
-  findOne(@Param('id') id: string): Promise<Project> {
+  findOne(@Param('id') id: string): Promise<any> {
     return this.projectsService.findById(id);
   }
 
@@ -93,10 +92,9 @@ export class ProjectsController {
     description: 'Acceso denegado - Se requiere rol de administrador',
   })
   @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
-  create(@Body() createProjectDto: CreateProjectDto): Promise<Project> {
+  create(@Body() createProjectDto: CreateProjectDto): Promise<any> {
     return this.projectsService.create(createProjectDto);
   }
-
 
   @Patch(':id')
   @UseGuards(AuthGuard, RolesGuard)
@@ -123,7 +121,7 @@ export class ProjectsController {
   partialUpdate(
     @Param('id') id: string,
     @Body() updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
+  ): Promise<any> {
     return this.projectsService.partialUpdate(id, updateProjectDto);
   }
 

@@ -23,7 +23,7 @@ import { LambdaIngestionDto } from './dto/indicators.dto';
 import { AuthGuard } from '../users-module/guards/auth.guard';
 import { RolesGuard } from '../users-module/guards/roles.guard';
 import { Roles } from '../users-module/decorators/roles.decorator';
-import { UserRole } from '../users-module/users.entity';
+import { UserRole } from '../users-module/user-role.enum';
 
 @ApiTags('indicators')
 @Controller('indicators')

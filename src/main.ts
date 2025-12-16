@@ -93,7 +93,7 @@ async function bootstrap() {
 
   logger.log(`🚀 Application is running on: http://localhost:${port}`);
   logger.log(`📚 Swagger documentation: http://localhost:${port}/api`);
-  logger.log(`🗄️  Database: SQLite (db.sqlite)`);
+  logger.log(`🗄️  Database: DynamoDB`);
   logger.log(`🔒 JWT Authentication enabled`);
 }
 
