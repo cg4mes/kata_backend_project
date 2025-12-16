@@ -16,7 +16,7 @@ const TABLE_NAME = 'kata-backend-local';
 
 async function seedDatabase() {
 	try {
-		console.log('🌱 Seeding database...\n');
+		console.log('Seeding database...\n');
 
 		// Create admin user
 		const adminPassword = await bcrypt.hash('admin123', 10);
@@ -39,7 +39,7 @@ async function seedDatabase() {
 				Item: adminUser,
 			})
 		);
-		console.log('✅ Admin user created:');
+		console.log('   Admin user created:');
 		console.log('   Email: admin@kata.com');
 		console.log('   Password: admin123');
 		console.log('   Role: admin\n');
@@ -65,14 +65,14 @@ async function seedDatabase() {
 				Item: regularUser,
 			})
 		);
-		console.log('✅ Regular user created:');
+		console.log('   Regular user created:');
 		console.log('   Email: user@kata.com');
 		console.log('   Password: user123');
 		console.log('   Role: user\n');
 
-		console.log('🎉 Database seeded successfully!');
+		console.log('   Database seeded successfully!');
 	} catch (error) {
-		console.error('❌ Error seeding database:', error);
+		console.error(' Error seeding database:', error);
 		process.exit(1);
 	}
 }

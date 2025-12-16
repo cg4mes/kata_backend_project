@@ -1,4 +1,4 @@
-echo "🧪 Running tests before push..."
-npm run test || { echo "❌ Tests failed. Fix them before pushing."; exit 1; }
+echo "Running tests before push..."
+npm run test || { echo "Tests failed. Fix them before pushing."; exit 1; }
 
-echo "✅ Pre-push checks passed!"
+echo "Pre-push checks passed!"

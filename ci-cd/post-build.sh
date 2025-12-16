@@ -17,4 +17,4 @@ fi
 echo "Cleaning temporary files..."
 rm -rf .scannerwork || true
 
-echo "✅ Post-build cleanup completed"
+echo "Post-build cleanup completed"

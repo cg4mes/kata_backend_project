@@ -23,12 +23,12 @@ async function createTable() {
 		const listResult = await client.send(listTablesCommand);
 
 		if (listResult.TableNames?.includes(TABLE_NAME)) {
-			console.log(`⚠️  Table ${TABLE_NAME} already exists. Deleting...`);
+			console.log(`Table ${TABLE_NAME} already exists. Deleting...`);
 			const deleteCommand = new DeleteTableCommand({
 				TableName: TABLE_NAME,
 			});
 			await client.send(deleteCommand);
-			console.log('✅ Old table deleted');
+			console.log('Old table deleted');
 			// Wait a bit for the table to be fully deleted
 			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
@@ -81,13 +81,13 @@ async function createTable() {
 		});
 
 		await client.send(createTableCommand);
-		console.log(`✅ Table ${TABLE_NAME} created successfully!`);
-		console.log('\n📊 Table Structure:');
+		console.log(`Table ${TABLE_NAME} created successfully!`);
+		console.log('\nTable Structure:');
 		console.log('  - Primary Key: PK (HASH), SK (RANGE)');
 		console.log('  - GSI1: GSI1PK (HASH), GSI1SK (RANGE) - For email lookups');
 		console.log('  - GSI2: GSI2PK (HASH) - For product lookups');
 	} catch (error) {
-		console.error('❌ Error creating table:', error);
+		console.error('Error creating table:', error);
 		process.exit(1);
 	}
 }
