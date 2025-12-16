@@ -1,4 +1,4 @@
-name: Deploy Backend to Production
+name: Deploy Backend to Production (Lambda)
 
 on:
   push:
@@ -7,26 +7,29 @@ on:
     paths:
       - 'src/**'
       - 'package*.json'
-      - 'Dockerfile'
+      - 'buildspec-lambda.yml'
       - '.github/workflows/deploy-production.yml'
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: kata-backend-production
-  ECS_SERVICE: kata-backend-production-service
-  ECS_CLUSTER: kata-backend-cluster
-  ECS_TASK_DEFINITION: task-definition-production.json
-  CONTAINER_NAME: kata-backend
+  LAMBDA_FUNCTION_NAME: kata-backend-production
+  NODE_VERSION: '20'
 
 jobs:
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production Lambda
     runs-on: ubuntu-latest
     environment: production
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -35,40 +38,36 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Install dependencies
+        run: npm ci --only=production
 
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Create Lambda deployment package
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          cd dist
+          cp -r ../node_modules .
+          zip -r ../lambda-deployment-production.zip . -x "*.spec.js" "*.spec.d.ts" "test/*"
+          cd ..
+          ls -lh lambda-deployment-production.zip
 
-      - name: Fill in the new image ID in the Amazon ECS task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
+      - name: Deploy to AWS Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://lambda-deployment-production.zip \
+            --region ${{ env.AWS_REGION }}
 
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Wait for Lambda update to complete
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --region ${{ env.AWS_REGION }}
 
       - name: Notify deployment
         if: success()
         run: |
-          echo "✅ Backend deployed successfully to Production environment"
-          echo "Image: ${{ steps.build-image.outputs.image }}"
+          echo "✅ Backend deployed successfully to Production Lambda"
+          echo "Function: ${{ env.LAMBDA_FUNCTION_NAME }}"
+          echo "Region: ${{ env.AWS_REGION }}"

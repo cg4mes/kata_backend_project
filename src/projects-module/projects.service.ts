@@ -4,54 +4,65 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Project } from './projects.entity';
-import { Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
-import { Indicators } from '../indicators-module/indicators.entity';
 import {
   ProjectWithMetricsDto,
   ProjectMetricsDto,
 } from './dto/project-with-metrics.dto';
+import { DynamoDBDatasource } from '../common/datasources/dynamodb.datasource';
 
 @Injectable()
 export class ProjectsService {
-  constructor(
-    @InjectRepository(Project)
-    private readonly projectRepository: Repository<Project>,
-    @InjectRepository(Indicators)
-    private readonly indicatorsRepository: Repository<Indicators>,
-  ) {}
+  constructor(private readonly dynamodb: DynamoDBDatasource) {}
 
   // Devuelve todos los equipos con sus métricas calculadas
   async findAllWithMetrics(): Promise<ProjectWithMetricsDto[]> {
-    const projects = await this.projectRepository.find();
+    const projects = await this.findAll();
 
     return Promise.all(
       projects.map(async (project) => {
-        const metrics = await this.calculateProjectMetrics(project.id);
-        return {
-          ...project,
-          metrics,
-        };
+        // Usar prefix en lugar de id para calcular métricas
+        const metrics = await this.calculateProjectMetricsByPrefix(project.prefix);
+        return this.toProjectWithMetricsDto(project, metrics);
       }),
     );
   }
 
-  // Devuelve todos los equipos (sin métricas)
-  async findAll(): Promise<Project[]> {
-    return this.projectRepository.find();
+  // Mapea un proyecto de DynamoDB a ProjectWithMetricsDto (solo campos necesarios)
+  private toProjectWithMetricsDto(project: any, metrics: ProjectMetricsDto): ProjectWithMetricsDto {
+    return {
+      id: project.id,
+      product: project.product,
+      prefix: project.prefix,
+      totalDefinedTests: project.totalDefinedTests,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      metrics,
+    };
   }
 
-  // Calcula las métricas para un proyecto específico
-  private async calculateProjectMetrics(
-    projectId: string,
+  // Devuelve todos los equipos (sin métricas)
+  async findAll(): Promise<any[]> {
+    // Para obtener todos los proyectos, necesitamos hacer un scan
+    // ya que cada proyecto tiene un PK diferente (PROJECT#{prefix})
+    // Filtramos por EntityType y que el SK sea METADATA para obtener solo los metadatos del proyecto
+    const items = await this.dynamodb.scan({
+      filter: 'EntityType = :type AND SK = :sk',
+      filterValues: { ':type': 'Project', ':sk': 'METADATA' },
+    });
+    return items;
+  }
+
+  // Calcula las métricas para un proyecto específico usando su prefix
+  private async calculateProjectMetricsByPrefix(
+    prefix: string,
   ): Promise<ProjectMetricsDto> {
     // Obtener todos los indicadores del proyecto
-    const indicators = await this.indicatorsRepository.find({
-      where: { projectId },
-      order: { runDate: 'ASC' },
+    // Los indicators están guardados con PK=PROJECT#{prefix}, SK=INDICATOR#{timestamp}#{id}
+    const indicators = await this.dynamodb.query(`PROJECT#${prefix}`, {
+      skBeginsWith: 'INDICATOR#',
     });
 
     if (indicators.length === 0) {
@@ -63,6 +74,9 @@ export class ProjectsService {
         averageSecurityScore: 100,
       };
     }
+    
+    // Ordenar por runDate ascendente
+    indicators.sort((a, b) => new Date(a.runDate).getTime() - new Date(b.runDate).getTime());
 
     // Filtrar por tipo de pipeline
     const regressionIndicators = indicators.filter(
@@ -124,74 +138,139 @@ export class ProjectsService {
     };
   }
 
-  // Devuelve un equipo por id (y lanza 404 si no existe)
-  async findById(id: string): Promise<Project> {
-    const project = await this.projectRepository.findOne({
-      where: { id },
+  // Devuelve un equipo por id (y lanza 404 si no existe) - Solo campos públicos
+  async findById(id: string): Promise<any> {
+    const project = await this.findByIdInternal(id);
+    return this.toProjectDto(project);
+  }
+
+  // Método interno que devuelve el objeto completo de DynamoDB (con PK, SK, etc)
+  private async findByIdInternal(id: string): Promise<any> {
+    // Scan para buscar por ID (no es la PK)
+    const items = await this.dynamodb.scan({
+      filter: 'id = :id AND EntityType = :type',
+      filterValues: { ':id': id, ':type': 'Project' },
     });
 
-    if (!project) {
+    if (items.length === 0) {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
 
-    return project;
+    return items[0];
+  }
+
+  // Mapea un proyecto de DynamoDB a DTO (solo campos necesarios)
+  private toProjectDto(project: any): any {
+    return {
+      id: project.id,
+      product: project.product,
+      prefix: project.prefix,
+      totalDefinedTests: project.totalDefinedTests,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
   }
 
   // Crea un nuevo equipo
-  async create(createProjectDto: CreateProjectDto): Promise<Project> {
-    // Verificar si ya existe un proyecto con el mismo product y prefix
-    const existingProject = await this.projectRepository.findOne({
-      where: [
-        { product: createProjectDto.product },
-        { prefix: createProjectDto.prefix },
-      ],
-    });
-
-    if (existingProject) {
+  async create(createProjectDto: CreateProjectDto): Promise<any> {
+    // Verificar si ya existe proyecto con el mismo prefix (PK)
+    const existingByPrefix = await this.dynamodb.get(
+      `PROJECT#${createProjectDto.prefix}`,
+      'METADATA',
+    );
+    if (existingByPrefix) {
       throw new ConflictException(
-        `Project with product "${createProjectDto.product}" or prefix "${createProjectDto.prefix}" already exists`,
+        `Project with prefix "${createProjectDto.prefix}" already exists`,
       );
     }
 
-    const newProject = this.projectRepository.create(createProjectDto);
-    return this.projectRepository.save(newProject);
+    // Verificar si ya existe proyecto con el mismo product (GSI2)
+    const existingByProduct = await this.dynamodb.queryGSI(
+      'GSI2',
+      `PRODUCT#${createProjectDto.product}`,
+    );
+    if (existingByProduct && existingByProduct.length > 0) {
+      throw new ConflictException(
+        `Project with product "${createProjectDto.product}" already exists`,
+      );
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    const projectItem = {
+      PK: `PROJECT#${createProjectDto.prefix}`,
+      SK: 'METADATA',
+      EntityType: 'Project',
+      id,
+      prefix: createProjectDto.prefix,
+      product: createProjectDto.product,
+      totalDefinedTests: createProjectDto.totalDefinedTests,
+      createdAt: now,
+      updatedAt: now,
+      // GSI2 for product lookup
+      GSI2PK: `PRODUCT#${createProjectDto.product}`,
+      GSI2SK: `PROJECT#${createProjectDto.prefix}`,
+    };
+
+    await this.dynamodb.put(projectItem);
+    return this.toProjectDto(projectItem);
   }
 
-  // Actualiza completamente un equipo (PUT)
-  async update(
-    id: string,
-    updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    const project = await this.findById(id);
-    Object.assign(project, updateProjectDto);
-    return this.projectRepository.save(project);
+  // Actualiza completamente un equipo (PUT/PATCH)
+  // Solo permite actualizar totalDefinedTests
+  // product y prefix no se pueden cambiar porque son llaves (PK y GSI2)
+  async update(id: string, updateProjectDto: UpdateProjectDto): Promise<any> {
+    const project = await this.findByIdInternal(id);
+
+    const updates: any = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (updateProjectDto.totalDefinedTests !== undefined) {
+      updates.totalDefinedTests = updateProjectDto.totalDefinedTests;
+    }
+
+    const updatedProject = await this.dynamodb.update(
+      project.PK,
+      project.SK,
+      updates,
+      true,
+    );
+
+    return this.toProjectDto(updatedProject);
   }
 
   // Actualiza parcialmente un equipo (PATCH)
   async partialUpdate(
     id: string,
     updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    const project = await this.findById(id);
-    Object.assign(project, updateProjectDto);
-    return this.projectRepository.save(project);
+  ): Promise<any> {
+    return this.update(id, updateProjectDto);
   }
 
   // Elimina un equipo por id
   async delete(id: string): Promise<void> {
-    const project = await this.findById(id);
+    const project = await this.findByIdInternal(id);
 
     // Verificar si existen indicadores asociados
-    const indicatorsCount = await this.indicatorsRepository.count({
-      where: { projectId: id },
+    // Los indicators tienen PK=PROJECT#{prefix}, SK=INDICATOR#...
+    const indicators = await this.dynamodb.query(project.PK, {
+      skBeginsWith: 'INDICATOR#',
+      limit: 1,
     });
 
-    if (indicatorsCount > 0) {
+    if (indicators.length > 0) {
+      // Contar todos los indicators para el mensaje
+      const allIndicators = await this.dynamodb.query(project.PK, {
+        skBeginsWith: 'INDICATOR#',
+      });
+      
       throw new BadRequestException(
-        `Cannot delete project "${project.product}". It has ${indicatorsCount} test run(s) associated. Please delete all test runs before deleting the project.`,
+        `Cannot delete project "${project.product}". It has ${allIndicators.length} test run(s) associated. Please delete all test runs before deleting the project.`,
       );
     }
 
-    await this.projectRepository.remove(project);
+    await this.dynamodb.delete(project.PK, project.SK);
   }
 }

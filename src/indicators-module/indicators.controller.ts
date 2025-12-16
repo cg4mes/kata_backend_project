@@ -115,7 +115,7 @@ export class IndicatorsController {
   @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
   async remove(@Param('id') id: string): Promise<{ message: string }> {
     await this.service.delete(id);
-    return { message: 'Ejecución de prueba eliminada exitosamente' };
+    return { message: 'Ejecución eliminada exitosamente' };
   }
 
   @Delete('project/:projectId/all')

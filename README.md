@@ -35,15 +35,32 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 
 ## 🏗️ Arquitectura
 
+**Arquitectura Serverless con AWS Lambda + Aurora Serverless v2**
+
+Para una descripción detallada de la arquitectura, consulta [ARCHITECTURE-LAMBDA.md](ARCHITECTURE-LAMBDA.md)
+
+### Stack Tecnológico
+
+- **Compute**: AWS Lambda (Node.js 20.x)
+- **API**: API Gateway HTTP API
+- **Database**: Aurora Serverless v2 (PostgreSQL 15.5)
+- **IaC**: AWS CDK (TypeScript)
+- **Auth**: JWT + Role-Based Access Control (RBAC)
+
 ### Módulos
 
 ```
 src/
+├── lambda.ts            # Lambda handler (serverless-express)
 ├── projects-module/      # Gestión de proyectos QA
 ├── indicators-module/    # Indicadores de pruebas y métricas
 ├── users-module/        # Autenticación y autorización
 ├── health/              # Endpoints de verificación de salud
 └── common/              # Utilidades compartidas, filtros, interceptores
+
+infrastructure/          # AWS CDK Infrastructure as Code
+├── bin/                 # CDK app entry point
+└── lib/                 # CDK stacks (VPC, Lambda, Aurora, etc.)
 ```
 
 ### Tecnologías Clave
@@ -61,9 +78,9 @@ src/
 
 - **Node.js** v20 o superior
 - **npm** o **yarn**
-- **Docker** (opcional, para contenerización)
 - **AWS CLI** (para despliegue en la nube)
-- **PostgreSQL** (para entorno de producción)
+- **AWS CDK CLI** (para infraestructura como código)
+- **PostgreSQL** (para desarrollo local, Aurora Serverless en producción)
 
 ## 🚀 Inicio Rápido
 
@@ -128,17 +145,16 @@ npm run test:cov       # Ejecutar pruebas con cobertura
 npm run test:e2e       # Ejecutar pruebas end-to-end
 ```
 
-### Usar Docker Localmente
+### Desarrollo Local
 
 ```bash
-# Construir imagen Docker
-docker build -t kata-backend:local .
+# Instalar dependencias
+npm install
 
-# Ejecutar contenedor con archivo de entorno
-docker run -p 3000:3000 --env-file .env kata-backend:local
+# Ejecutar en modo desarrollo
+npm run start:dev
 
-# O usando el script de compilación local
-./ci-cd/local-build.sh qa
+# La aplicación correrá en http://localhost:3000
 ```
 
 ## 🧪 Pruebas
@@ -250,27 +266,25 @@ GET    /health                  # Health check endpoint
 
 ## 📦 Despliegue
 
-Este proyecto está configurado para despliegue en **AWS ECS/Fargate** con Docker.
+Este proyecto está configurado para despliegue **serverless** en **AWS Lambda + Aurora Serverless v2** usando **AWS CDK**.
 
 ### 🏗️ Arquitectura de Despliegue
 
 ```
-┌─────────────┐      ┌──────────────┐      ┌─────────┐
-│   GitHub    │─────▶│  CodeBuild   │─────▶│   ECR   │
-│  (Source)   │      │(Build Docker)│      │ Registry│
-└─────────────┘      └──────────────┘      └────┬────┘
-                                                  │
-                                                  ▼
-                                           ┌─────────────┐
-                                           │     ECS     │
-                                           │  (Fargate)  │
-                                           └─────────────┘
-                                                  │
-                                           ┌──────▼───────┐
-                                           │  PostgreSQL  │
-                                           │     RDS      │
-                                           └──────────────┘
+┌─────────────┐      ┌──────────────┐      ┌─────────────┐
+│   GitHub    │─────▶│  CodeBuild   │─────▶│   Lambda    │
+│  (Source)   │      │ (Build ZIP)  │      │  Function   │
+└─────────────┘      └──────────────┘      └──────┬──────┘
+                                                    │
+                    ┌───────────────────────────────┤
+                    │                               │
+             ┌──────▼────────┐            ┌─────────▼────────┐
+             │  API Gateway  │            │     Aurora       │
+             │   HTTP API    │            │  Serverless v2   │
+             └───────────────┘            └──────────────────┘
 ```
+
+📖 **Ver documentación completa**: [ARCHITECTURE-LAMBDA.md](ARCHITECTURE-LAMBDA.md)
 
 ### 🚀 Despliegue Rápido
 

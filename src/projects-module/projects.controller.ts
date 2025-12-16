@@ -6,7 +6,6 @@ import {
   Param,
   Patch,
   Post,
-  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -98,34 +97,6 @@ export class ProjectsController {
     return this.projectsService.create(createProjectDto);
   }
 
-  @Put(':id')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({
-    summary: 'Actualizar completamente un proyecto',
-    description:
-      'Reemplaza TODOS los campos del proyecto. Se deben enviar todos los campos obligatorios. Para actualizaciones parciales use PATCH. Solo usuarios ADMIN pueden actualizar proyectos.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Proyecto actualizado exitosamente con los nuevos valores',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Proyecto no encontrado con el ID proporcionado',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Acceso denegado - Se requiere rol de administrador',
-  })
-  @ApiResponse({ status: 401, description: 'Token JWT inválido o expirado' })
-  update(
-    @Param('id') id: string,
-    @Body() updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    return this.projectsService.update(id, updateProjectDto);
-  }
 
   @Patch(':id')
   @UseGuards(AuthGuard, RolesGuard)
