@@ -1,0 +1,12 @@
+coverage/
+build/
+dist/
+node_modules/
+.scannerwork/
+dynamodb-data/
+infrastructure/cdk.out/
+
+package.json
+package-lock.json
+*.yml
+*.yaml

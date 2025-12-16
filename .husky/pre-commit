@@ -1,0 +1,5 @@
+echo "🔍 Running linter and formatter..."
+npm run lint:check || { echo "❌ Linting failed. Run 'npm run lint' to fix."; exit 1; }
+npm run prettier:check || { echo "❌ Formatting failed. Run 'npm run prettier:all' to fix."; exit 1; }
+
+echo "✅ Pre-commit checks passed!"

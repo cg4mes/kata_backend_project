@@ -7,16 +7,16 @@ import { HealthModule } from './health/health.module';
 import { DynamoDBModule } from './common/dynamodb.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
-    DynamoDBModule, // Global DynamoDB client module
-    ProjectsModule,
-    IndicatorsModule,
-    UsersModule,
-    HealthModule,
-  ],
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			envFilePath: '.env',
+		}),
+		DynamoDBModule, // Global DynamoDB client module
+		ProjectsModule,
+		IndicatorsModule,
+		UsersModule,
+		HealthModule,
+	],
 })
 export class AppModule {}

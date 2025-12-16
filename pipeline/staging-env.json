@@ -1,0 +1,9 @@
+{
+	"vars": {
+		"NODE_ENV": "staging",
+		"AWS_REGION": "us-east-1",
+		"DYNAMODB_TABLE_NAME": "kata-backend-staging",
+		"JWT_SECRET_NAME": "kata-backend-jwt-secret-staging",
+		"CORS_ORIGINS": "https://staging-frontend.example.com"
+	}
+}
