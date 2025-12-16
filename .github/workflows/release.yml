@@ -1,0 +1,43 @@
+name: Deploy Release
+on:
+  workflow_dispatch:
+    inputs:
+      percentage-new-version:
+        description: 'Please, enter the percentage in the range 0 - 1 for deployment new version with traffic control'
+        required: true
+      environment:
+        description: 'Please, enter the environment'
+        required: true
+        type: choice
+        options:
+          - qa
+          - st
+          - pr
+env:
+  lambda-function-name: 'kata-backend'
+  aws-region: 'us-east-1'
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout Action Lambda
+        uses: actions/checkout@v3
+        with:
+          repository: bancodebogota/bdb-dig-do-pipelines-action-lambdas-IaC
+          ref: 'v3'
+          token: ${{ secrets.DIG_READER_GITHUB_ACCESS_TOKEN }}
+          persist-credentials: false
+          path: ./.github/actions/bdb-dig-do-pipelines-action-lambdas-IaC
+      - name: Release Lambda
+        uses: ./.github/actions/bdb-dig-do-pipelines-action-lambdas-IaC/release
+        with:
+          function-name: ${{ env.lambda-function-name }}
+          percentage-new-version: ${{ inputs.percentage-new-version }}
+          aws-account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          role-assume: ${{ secrets.AWS_ROLE_DEPLOY_BACKEND }}
+          aws-region: ${{ env.aws-region }}
