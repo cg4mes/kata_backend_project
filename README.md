@@ -4,8 +4,7 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 
 [![NestJS](https://img.shields.io/badge/NestJS-11.0-red.svg)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-orange.svg)](https://aws.amazon.com/lambda/)
-[![DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-blue.svg)](https://aws.amazon.com/dynamodb/)
+[![DynamoDB](https://img.shields.io/badge/DynamoDB-Local-blue.svg)](https://aws.amazon.com/dynamodb/)
 
 ## 📋 Tabla de Contenidos
 
@@ -17,7 +16,6 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 - [Pruebas](#-pruebas)
 - [Calidad de Código](#-calidad-de-código)
 - [Documentación de API](#-documentación-de-api)
-- [Despliegue](#-despliegue)
 - [Variables de Entorno](#-variables-de-entorno)
 - [Estructura del Proyecto](#️-estructura-del-proyecto)
 
@@ -28,74 +26,20 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 - **Cálculo de Métricas**: Tasas de éxito, cobertura, error rate y security score
 - **Autenticación JWT**: Control de acceso basado en roles (Admin/Viewer)
 - **Single Table Design**: DynamoDB optimizado con GSI para queries eficientes
-- **Arquitectura Serverless**: AWS Lambda + DynamoDB con escalado automático
 - **Validación de Datos**: class-validator para validación exhaustiva
 - **Health Checks**: Monitoreo de estado de la aplicación
 - **Documentación Swagger**: API docs interactiva en `/api`
 
 ## 🏗️ Arquitectura
 
-### Arquitectura Serverless con AWS Lambda + DynamoDB
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                       FRONTEND (CloudFront + S3)                  │
-│                          React + Vite SPA                         │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │ HTTPS API Calls
-                             ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                    API GATEWAY HTTP API                           │
-│  - RESTful endpoints                                              │
-│  - CORS configuration                                             │
-│  - CloudWatch logging                                             │
-└────────────────────────────┬─────────────────────────────────────┘
-                             ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                      AWS LAMBDA FUNCTION                          │
-│  - Runtime: Node.js 20.x                                          │
-│  - Handler: lambda.handler                                        │
-│  - Memory: 512 MB                                                 │
-│  - Timeout: 30s                                                   │
-│  - NestJS + Express (serverless-express)                          │
-│  - JWT Auth + RBAC                                                │
-└────────────────────────────┬─────────────────────────────────────┘
-                             ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                       AMAZON DYNAMODB                             │
-│  Table: kata-backend-{stage}                                      │
-│  - Primary Key: PK (Hash), SK (Range)                             │
-│  - GSI1: Email lookup for users                                   │
-│  - GSI2: Product lookup for projects                              │
-│  - Single Table Design pattern                                    │
-│  - Billing: Pay-per-request                                       │
-└──────────────────────────────────────────────────────────────────┘
-                             ↕
-┌──────────────────────────────────────────────────────────────────┐
-│                   AWS SECRETS MANAGER                             │
-│  - /kata/{stage}/jwt-secret                                       │
-│  - Automatic rotation support                                     │
-└──────────────────────────────────────────────────────────────────┘
-                             ↕
-┌──────────────────────────────────────────────────────────────────┐
-│                     AMAZON CLOUDWATCH                             │
-│  - Lambda execution logs                                          │
-│  - API Gateway access logs                                        │
-│  - Custom metrics & alarms                                        │
-│  - Dashboard with key metrics                                     │
-└──────────────────────────────────────────────────────────────────┘
-```
-
 ### Stack Tecnológico
 
 - **Framework**: NestJS 11.0
 - **Runtime**: Node.js 20.x
-- **Compute**: AWS Lambda (Serverless)
-- **Database**: Amazon DynamoDB (NoSQL)
-- **API Gateway**: API Gateway HTTP API
-- **IaC**: AWS CDK (TypeScript)
+- **Database**: DynamoDB (Local con Docker para desarrollo)
 - **Auth**: JWT + Role-Based Access Control
-- **Monitoring**: CloudWatch Logs & Metrics
+- **Testing**: Jest + Supertest
+- **Documentation**: Swagger/OpenAPI
 
 ### Modelo de Datos (Single Table Design)
 
@@ -128,35 +72,12 @@ Attributes: id, projectId, pipelineType, executionDate, totalTests,
             passedTests, failedTests, errorRate, securityScore, etc.
 ```
 
-### Ventajas de la Arquitectura
-
-#### ✅ Económica
-
-- **Pay-per-use**: Solo pagas por invocaciones reales
-- **Sin servidores 24/7**: Elimina costos de infraestructura idle
-- **DynamoDB on-demand**: Escala automáticamente sin provisioning
-- **~50% más barato** que ECS/Fargate para cargas variables
-
-#### ✅ Escalable
-
-- Lambda escala de 0 a miles de invocaciones automáticamente
-- DynamoDB maneja millones de requests/segundo
-- API Gateway soporta tráfico masivo sin configuración
-
-#### ✅ Serverless Real
-
-- Infraestructura 100% gestionada por AWS
-- Actualizaciones de seguridad automáticas
-- Alta disponibilidad multi-AZ por defecto
-- Zero server management
-
 ### Módulos
 
 ```
 src/
-├── lambda.ts              # Lambda handler entry point
-├── main.ts                # Standalone server (desarrollo)
 ├── app.module.ts          # Root module
+├── main.ts                # Standalone server entry
 ├── projects-module/       # Gestión de proyectos QA
 ├── indicators-module/     # Indicadores y métricas
 ├── users-module/          # Autenticación y autorización
@@ -164,12 +85,6 @@ src/
 └── common/
     └── datasources/
         └── dynamodb.datasource.ts  # DynamoDB access layer
-
-infrastructure/            # AWS CDK Infrastructure as Code
-├── bin/
-│   └── app.ts            # CDK app entry point
-└── lib/
-    └── kata-backend-stack.ts  # Lambda + DynamoDB stack
 ```
 
 ## 📋 Requisitos Previos
@@ -177,8 +92,6 @@ infrastructure/            # AWS CDK Infrastructure as Code
 - **Node.js** v20 o superior
 - **npm** v9 o superior
 - **Docker Desktop** (para DynamoDB Local)
-- **AWS CLI** v2 (para deployment)
-- **AWS CDK CLI** v2 (para infrastructure)
 
 ### Instalación de Herramientas
 
@@ -186,15 +99,8 @@ infrastructure/            # AWS CDK Infrastructure as Code
 # Verificar Node.js
 node --version  # Debe ser >= 20.x
 
-# Instalar AWS CLI (macOS)
-brew install awscli
-
-# Instalar AWS CDK CLI
-npm install -g aws-cdk
-
-# Verificar instalaciones
-aws --version
-cdk --version
+# Verificar Docker
+docker --version
 ```
 
 ## 🚀 Inicio Rápido
@@ -294,6 +200,7 @@ El servidor estará disponible en:
 
 - **GSI2**: Índice para búsqueda por producto
   - `GSI2PK` (HASH)
+  - `GSI2SK` (RANGE)
 
 ### 👤 Usuarios de Prueba
 
@@ -384,18 +291,6 @@ netstat -ano | findstr :3000
 taskkill /PID <PID> /F
 ```
 
-### Ejecutar en Modo Local vs Lambda
-
-```bash
-# Modo servidor standalone (desarrollo)
-npm run start:dev
-# → http://localhost:3000
-
-# Modo Lambda local (testing)
-# Usar AWS SAM Local o Serverless Offline
-sam local start-api
-```
-
 ## 🧪 Pruebas
 
 ### Ejecutar Tests
@@ -417,13 +312,15 @@ npm run test:e2e
 npm run test:debug
 ```
 
-### Cobertura de Pruebas
+### Ver Reporte de Cobertura
 
-Los reportes de cobertura se generan en:
+```bash
+# Generar reporte de cobertura
+npm run test:cov
 
-- **Terminal**: Resumen en consola
-- **HTML**: `coverage/lcov-report/index.html`
-- **LCOV**: `coverage/lcov.info` (para CI/CD)
+# Abrir reporte HTML
+open coverage/lcov-report/index.html
+```
 
 ### Objetivo de Cobertura
 
@@ -453,7 +350,7 @@ npm run format
 npm run format:check
 ```
 
-### SonarQube
+### SonarQube (Opcional)
 
 ```bash
 # Análisis de calidad (requiere SonarQube running)
@@ -524,185 +421,12 @@ Todos los endpoints (excepto `/auth/login` y `/health`) requieren JWT token:
 # 1. Login
 curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@kata.com","password":"Admin@123"}'
+  -d '{"email":"admin@kata.com","password":"admin123"}'
 
 # 2. Usar token en requests
 curl http://localhost:3000/projects \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
-
-## 📦 Despliegue
-
-### Arquitectura de Deployment
-
-```
-GitHub → CodePipeline → CodeBuild → Lambda Function
-                                          ↓
-                                    DynamoDB
-```
-
-### Pre-requisitos de AWS
-
-1. **AWS Account** con permisos de:
-   - Lambda, API Gateway, DynamoDB
-   - CloudWatch, Secrets Manager
-   - IAM, CloudFormation
-
-2. **AWS CLI configurado**:
-
-```bash
-aws configure
-# AWS Access Key ID: YOUR_KEY
-# AWS Secret Access Key: YOUR_SECRET
-# Default region: us-east-1
-```
-
-3. **CDK Bootstrap** (primera vez):
-
-```bash
-cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
-```
-
-### Deployment - Infraestructura (Una vez)
-
-```bash
-cd infrastructure
-npm install
-
-# Deploy staging
-cdk deploy KataBackendStagingStack
-
-# Deploy production
-cdk deploy KataBackendProductionStack
-```
-
-Esto crea:
-
-- Lambda function
-- API Gateway
-- DynamoDB table
-- Secrets Manager secret
-- CloudWatch logs & dashboard
-- IAM roles & policies
-
-### Deployment - Código Lambda
-
-#### Opción 1: Manual
-
-```bash
-# Build
-npm run build
-
-# Crear ZIP
-cd dist
-zip -r ../lambda-deployment.zip .
-cd ..
-zip -r lambda-deployment.zip node_modules
-
-# Deploy a Lambda
-aws lambda update-function-code \
-  --function-name kata-backend-staging \
-  --zip-file fileb://lambda-deployment.zip \
-  --region us-east-1
-```
-
-#### Opción 2: CI/CD con CodePipeline
-
-```bash
-# Push a branch específico
-git push origin develop    # → QA
-git push origin staging    # → Staging
-git push origin main       # → Production
-```
-
-CodePipeline automáticamente:
-
-1. Detecta cambios
-2. Ejecuta CodeBuild con buildspec correspondiente
-3. Compila TypeScript
-4. Crea ZIP
-5. Actualiza Lambda function
-
-### Buildspecs por Ambiente
-
-- `buildspec-lambda.yml` → Production
-- `buildspec-lambda-qa.yml` → QA
-- `buildspec-lambda-staging.yml` → Staging
-
-### Verificar Deployment
-
-```bash
-# Obtener URL del API Gateway
-aws cloudformation describe-stacks \
-  --stack-name KataBackendStagingStack \
-  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-  --output text
-
-# Test health endpoint
-curl https://YOUR_API_ENDPOINT/health
-```
-
-### Gestión de Secrets
-
-```bash
-# Ver JWT secret
-aws secretsmanager get-secret-value \
-  --secret-id /kata/staging/jwt-secret \
-  --region us-east-1
-
-# Actualizar secret
-aws secretsmanager put-secret-value \
-  --secret-id /kata/staging/jwt-secret \
-  --secret-string "new-super-secret-key" \
-  --region us-east-1
-```
-
-### Monitoreo Post-Deployment
-
-**CloudWatch Dashboard** incluye:
-
-- Lambda invocations & errors
-- Lambda duration (p50, p90, p99)
-- API Gateway requests & latency
-- DynamoDB read/write capacity
-
-**Logs**:
-
-```bash
-# Ver logs de Lambda
-aws logs tail /aws/lambda/kata-backend-staging --follow
-
-# Filtrar errores
-aws logs filter-pattern /aws/lambda/kata-backend-staging \
-  --filter-pattern "ERROR"
-```
-
-### Rollback
-
-```bash
-# Listar versiones de Lambda
-aws lambda list-versions-by-function \
-  --function-name kata-backend-staging
-
-# Rollback a versión anterior
-aws lambda update-alias \
-  --function-name kata-backend-staging \
-  --name CURRENT \
-  --function-version 42  # versión anterior estable
-```
-
-### Estimación de Costos
-
-| Servicio        | Uso                           | Costo Mensual |
-| --------------- | ----------------------------- | ------------- |
-| Lambda          | 1M requests, 512MB, 500ms avg | ~$4           |
-| API Gateway     | 1M requests                   | ~$3.50        |
-| DynamoDB        | 1M writes, 5M reads           | ~$5           |
-| Secrets Manager | 1 secret                      | ~$0.40        |
-| CloudWatch      | Logs + metrics                | ~$2           |
-| **TOTAL**       |                               | **~$15/mes**  |
-
-_Basado en uso moderado. Sin tráfico = ~$2.40/mes (solo Secrets + logs básicos)_
 
 ## 🔐 Variables de Entorno
 
@@ -728,16 +452,6 @@ JWT_EXPIRATION=24h
 CORS_ORIGINS=http://localhost:5173,http://localhost:5174
 ```
 
-### Variables en AWS Lambda
-
-Configuradas automáticamente por CDK:
-
-- `NODE_ENV`: production/staging/qa
-- `DYNAMODB_TABLE_NAME`: kata-backend-{stage}
-- `AWS_REGION`: us-east-1
-- `JWT_SECRET_ARN`: ARN del secret en Secrets Manager
-- `CORS_ORIGINS`: URLs permitidas
-
 ### Generar JWT Secret Seguro
 
 ```bash
@@ -754,7 +468,6 @@ kata_backend_project/
 ├── src/
 │   ├── app.module.ts                    # Root module
 │   ├── main.ts                          # Standalone server entry
-│   ├── lambda.ts                        # Lambda handler entry
 │   │
 │   ├── projects-module/
 │   │   ├── projects.controller.ts       # REST endpoints
@@ -794,35 +507,25 @@ kata_backend_project/
 │   └── common/
 │       ├── constants/
 │       │   └── error-messages.ts
-│       └── datasources/
-│           └── dynamodb.datasource.ts   # DynamoDB client wrapper
-│
-├── infrastructure/                       # AWS CDK IaC
-│   ├── bin/
-│   │   └── app.ts                       # CDK app
-│   ├── lib/
-│   │   └── kata-backend-stack.ts        # Stack definition
-│   ├── cdk.json
-│   ├── package.json
-│   └── tsconfig.json
+│       ├── datasources/
+│       │   └── dynamodb.datasource.ts   # DynamoDB client wrapper
+│       ├── filters/
+│       └── interceptors/
 │
 ├── test/
 │   ├── app.e2e-spec.ts                  # E2E tests
 │   └── jest-e2e.json
 │
-├── ci-cd/                                # Scripts de deployment
-│   ├── deploy.sh
-│   ├── install-dependencies.sh
-│   ├── local-build.sh
-│   └── verify-deployment-config.sh
+├── scripts/
+│   ├── init-dynamodb-local.ts           # Setup DynamoDB table
+│   └── seed-database.ts                 # Seed test data
 │
-├── buildspec-lambda.yml                 # Production CodeBuild
-├── buildspec-lambda-qa.yml              # QA CodeBuild
-├── buildspec-lambda-staging.yml         # Staging CodeBuild
+├── coverage/                             # Test coverage reports
+├── dist/                                 # Compiled output
 │
 ├── docker-compose.yml                   # DynamoDB Local
-├── create-dynamodb-table.sh             # Setup script
 │
+├── .env                                 # Environment variables
 ├── .env.example                         # Environment template
 ├── eslint.config.mjs                    # ESLint config
 ├── .prettierrc                          # Prettier config
@@ -842,97 +545,28 @@ kata_backend_project/
 - ✅ **JWT Authentication**: Tokens seguros con expiración
 - ✅ **Role-Based Access Control**: Admin/Viewer roles
 - ✅ **Password Hashing**: bcrypt con salt rounds
-- ✅ **Secrets Management**: AWS Secrets Manager
 - ✅ **Input Validation**: class-validator en todos los DTOs
-- ✅ **CORS Configurado**: Origenes permitidos por ambiente
-- ✅ **Security Groups**: Acceso restringido en Lambda
-- ✅ **HTTPS Only**: API Gateway con TLS
-- ✅ **IAM Least Privilege**: Permisos mínimos necesarios
+- ✅ **CORS Configurado**: Orígenes permitidos por ambiente
+- ✅ **Security Headers**: Helmet middleware
+- ✅ **Rate Limiting**: Protección contra ataques de fuerza bruta
 
 ### Best Practices
 
 1. **Nunca** commitear secrets en git
 2. Rotar JWT secrets regularmente
-3. Usar Secrets Manager para credentials
-4. Habilitar CloudTrail para auditoría
-5. Configurar WAF en API Gateway (producción)
-6. Rate limiting en endpoints públicos
-7. Input sanitization en todos los endpoints
-
-## ☁️ Infraestructura y Despliegue
-
-### Arquitectura de Despliegue
-
-Este proyecto sigue los estándares del Banco de Bogotá para aplicaciones serverless, donde la infraestructura es gestionada por el equipo de infraestructura centralizado.
-
-### Estructura de Despliegue
-
-```
-kata_backend_project/
-├── lambda/
-│   └── index.js          # Lambda handler (punto de entrada)
-├── dist/                 # Código compilado
-├── ci-cd/
-│   ├── deploy.sh         # Script de versionado y deploy
-│   └── install-dependencies.sh
-└── pipeline/             # Configuraciones por ambiente
-    ├── prod-env.json
-    ├── qa-env.json
-    └── stg-env.json
-```
-
-### Proceso de Despliegue
-
-Similar a proyectos en producción del banco como `bbog-pse-loan-payment-adapter`:
-
-1. **Build**: `npm run build` - Compila TypeScript a JavaScript en `/dist`
-2. **Test**: `npm test` - Ejecuta linting y tests
-3. **Tag**: Scripts en `/ci-cd` manejan versionado automático
-4. **Deploy**: Pipeline CI/CD corporativo detecta tags y despliega
-
-### Variables de Entorno Requeridas
-
-El código es completamente agnóstico a la infraestructura y se configura mediante variables de entorno:
-
-```bash
-# Requeridas para Lambda
-NODE_ENV=production
-DYNAMODB_TABLE_NAME=<nombre-tabla>
-AWS_REGION=us-east-1
-JWT_SECRET_ARN=<arn-secret-manager>
-CORS_ORIGINS=<urls-frontend>
-```
-
-### Especificación de Recursos AWS
-
-El código es completamente agnóstico a la infraestructura. Los recursos necesarios son:
-
-**Lambda Function**
-
-- Runtime: Node.js 20.x, Memory: 512MB, Timeout: 30s
-- Handler: `lambda/index.handler`
-
-**DynamoDB Table**
-
-- Primary Key: PK (String), SK (String)
-- GSI1: GSI1PK, GSI1SK (búsqueda por email)
-- GSI2: GSI2PK, GSI2SK (búsqueda por producto)
-
-**Secrets Manager**
-
-- JWT Secret de 64 caracteres
-
-**API Gateway HTTP API v2** + **IAM Roles** (DynamoDB, Secrets Manager, CloudWatch Logs)
+3. Usar variables de entorno para credentials
+4. Input sanitization en todos los endpoints
+5. Mantener dependencias actualizadas
+6. Revisar logs de seguridad regularmente
 
 ## 🤝 Contribuir
 
 ### Workflow de Desarrollo
 
-1. Fork del repositorio
-2. Crear feature branch: `git checkout -b feature/nueva-funcionalidad`
-3. Commit cambios: `git commit -m 'feat: agregar nueva funcionalidad'`
-4. Push a branch: `git push origin feature/nueva-funcionalidad`
-5. Crear Pull Request
+1. Crear feature branch: `git checkout -b feature/nueva-funcionalidad`
+2. Commit cambios: `git commit -m 'feat: agregar nueva funcionalidad'`
+3. Push a branch: `git push origin feature/nueva-funcionalidad`
+4. Crear Pull Request
 
 ### Convenciones de Código
 
@@ -945,7 +579,7 @@ El código es completamente agnóstico a la infraestructura. Los recursos necesa
   - `test:` agregar o actualizar tests
 - **Linting**: Ejecutar `npm run lint:fix` antes de commit
 - **Testing**: Mantener >80% cobertura
-- **PR**: Incluir descripción detallada y screenshots si aplica
+- **PR**: Incluir descripción detallada y tests
 
 ### Checklist Pre-PR
 
@@ -957,186 +591,11 @@ El código es completamente agnóstico a la infraestructura. Los recursos necesa
 - [ ] Variables de entorno documentadas en `.env.example`
 - [ ] Commit messages siguen convención
 
-## � Adaptación al Estándar del Banco de Bogotá
-
-Este proyecto ha sido adaptado para seguir los estándares corporativos del Banco de Bogotá, basándose en proyectos en producción como `bbog-pse-loan-payment-adapter`.
-
-### Estructura Lambda Corporativa
-
-El proyecto utiliza la estructura estándar del banco:
-
-```javascript
-// lambda/index.js - Punto de entrada para AWS Lambda
-console.log('start-lambda', 'Iniciando lambda...');
-const isInLambda = !!process.env.LAMBDA_TASK_ROOT;
-
-if (isInLambda) {
-	const app = require('../dist/lambda');
-	exports.handler = app.handler;
-} else {
-	console.error('Error executing as lambda.');
-}
-```
-
-### Cambios Implementados
-
-#### ✅ Naming Convention
-
-- **Nombre**: `bbog-cat-kata-backend`
-- **Autor**: CoE Agile Testing
-- **Licencia**: ISC (estándar del banco)
-
-#### ✅ Estructura de Despliegue
-
-```
-bbog-cat-kata-backend/
-├── lambda/index.js         # Punto de entrada Lambda (main)
-├── dist/                   # Código compilado
-├── ci-cd/                  # Scripts corporativos
-│   ├── deploy.sh          # Versionado automático
-│   └── install-dependencies.sh
-└── pipeline/               # Configs por ambiente
-    ├── prod-env.json
-    ├── qa-env.json
-    └── stg-env.json
-```
-
-#### ✅ Scripts CI/CD
-
-- **deploy.sh**: Versionado automático con git tags
-- **install-dependencies.sh**: Instalación de dependencias
-- Compatible con pipelines corporativos del banco
-
-#### ✅ Código Agnóstico
-
-Todo el código se configura mediante variables de entorno, permitiendo adaptarse a cualquier infraestructura:
-
-```bash
-NODE_ENV=production
-DYNAMODB_TABLE_NAME=<nombre-tabla>
-AWS_REGION=us-east-1
-JWT_SECRET_ARN=<arn-secret-manager>
-CORS_ORIGINS=<urls-frontend>
-```
-
-### Infraestructura de Referencia
-
-La carpeta `/infrastructure-reference` contiene código CDK para **desarrollo local y referencia únicamente**. En producción, los recursos AWS son provisionados por el equipo de infraestructura centralizado del banco.
-
-Para especificaciones técnicas completas de los recursos requeridos, consultar:
-
-- `infrastructure-reference/aws-resources-spec.md` - Especificación detallada de recursos AWS
-
-### Proceso de Despliegue Corporativo
-
-Similar a proyectos en producción del banco:
-
-1. **Build**: `npm run build` → Compila a `/dist`
-2. **Test**: `npm test` → Linting + tests unitarios
-3. **Tag**: `./ci-cd/deploy.sh` → Crea version tag
-4. **Deploy**: Pipeline CI/CD corporativo detecta tag y despliega automáticamente
-
-## 🚀 Checklist de Despliegue
-
-### Pre-Despliegue
-
-- [ ] `npm run lint:check` - Sin errores
-- [ ] `npm run test` - Tests pasan
-- [ ] `npm run build` - Compila correctamente
-- [ ] Código revisado y aprobado en PR
-
-### Variables de Entorno en Lambda
-
-```bash
-# Ambiente QA
-NODE_ENV=qa
-DYNAMODB_TABLE_NAME=bbog-cat-kata-backend-qa
-AWS_REGION=us-east-1
-JWT_SECRET_ARN=arn:aws:secretsmanager:us-east-1:XXXX:secret:kata-jwt-qa
-CORS_ORIGINS=https://qa-kata.bancobogota.com.co
-
-# Ambiente Producción
-NODE_ENV=production
-DYNAMODB_TABLE_NAME=bbog-cat-kata-backend-prod
-AWS_REGION=us-east-1
-JWT_SECRET_ARN=arn:aws:secretsmanager:us-east-1:XXXX:secret:kata-jwt-prod
-CORS_ORIGINS=https://kata.bancobogota.com.co
-```
-
-### Recursos AWS Requeridos
-
-El equipo de infraestructura debe provisionar:
-
-**Lambda Function**
-
-- Runtime: Node.js 20.x
-- Memory: 512 MB
-- Timeout: 30 segundos
-- Handler: lambda/index.handler
-
-**DynamoDB Table**
-
-- Nombre: `bbog-cat-kata-backend-{env}`
-- Primary Key: PK (String), SK (String)
-- GSI1: GSI1PK, GSI1SK (búsqueda por email)
-- GSI2: GSI2PK, GSI2SK (búsqueda por producto)
-- Billing: On-demand o provisionado
-
-**Secrets Manager**
-
-- Secret JWT: String de 64 caracteres
-- Permisos de lectura para Lambda
-
-**API Gateway**
-
-- HTTP API v2
-- CORS configurado
-- Integración con Lambda
-
-**IAM Roles**
-
-- DynamoDB: GetItem, PutItem, UpdateItem, DeleteItem, Query, Scan
-- Secrets Manager: GetSecretValue
-- CloudWatch Logs: CreateLogGroup, CreateLogStream, PutLogEvents
-
-### Verificación Post-Despliegue
-
-```bash
-# Health check
-curl https://api.bancobogota.com.co/kata/health
-
-# Login test
-curl -X POST https://api.bancobogota.com.co/kata/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@kata.com","password":"admin123"}'
-```
-
-## 📞 Soporte
-
-### Issues
-
-Para reportar bugs o solicitar features:
-
-1. Verificar que no exista un issue similar
-2. Crear nuevo issue con template apropiado
-3. Incluir pasos para reproducir
-4. Adjuntar logs relevantes
-
-### Contacto
-
-- **Equipo de Desarrollo**: CoE Agile Testing
-- **Documentación**: Ver README.md y archivos en `/infrastructure-reference`
-
-## 📄 Licencia
-
-ISC - Este proyecto sigue las convenciones del Banco de Bogotá.
-
 ## 🔗 Recursos Útiles
 
 ### Documentación Oficial
 
 - [NestJS Docs](https://docs.nestjs.com)
-- [AWS Lambda Docs](https://docs.aws.amazon.com/lambda/)
 - [DynamoDB Developer Guide](https://docs.aws.amazon.com/dynamodb/)
 - [JWT.io](https://jwt.io) - JWT debugger
 
@@ -1145,13 +604,6 @@ ISC - Este proyecto sigue las convenciones del Banco de Bogotá.
 - [The DynamoDB Book](https://www.dynamodbbook.com)
 - [AWS re:Invent - Advanced Design Patterns](https://www.youtube.com/watch?v=6yqfmXiZTlM)
 
-### Serverless Best Practices
-
-- [Serverless Architecture Patterns](https://serverlessland.com/patterns)
-- [AWS Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning)
-
 ---
 
-**Construido con ❤️ por CoE Agile Testing usando NestJS + AWS Serverless**
-
-_Proyecto: bbog-cat-kata-backend | Última actualización: Diciembre 2025_
+**Construido con ❤️ usando NestJS + DynamoDB**
