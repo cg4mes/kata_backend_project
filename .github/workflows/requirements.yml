@@ -1,0 +1,23 @@
+name: Requirements Check
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+      - develop
+
+jobs:
+  requirements-backend:
+    uses: bancodebogota/bbog-can-pipeline/.github/workflows/requirements_nodejs_backend.yml@v1
+    with:
+      project-name: 'kata-backend-project'
+      project-key: 'kata_backend_project'
+      language: 'javascript'
+      node-version: '20.x'
+      type-service: 'lambda'
+      service-name: 'kata-backend'
+      path-environments-variables: >
+        pipeline/qa-env.json
+        pipeline/stg-env.json
+        pipeline/prod-env.json
+    secrets: inherit

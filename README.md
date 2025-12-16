@@ -4,7 +4,8 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 
 [![NestJS](https://img.shields.io/badge/NestJS-11.0-red.svg)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![TypeORM](https://img.shields.io/badge/TypeORM-0.3-orange.svg)](https://typeorm.io/)
+[![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-orange.svg)](https://aws.amazon.com/lambda/)
+[![DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-blue.svg)](https://aws.amazon.com/dynamodb/)
 
 ## 📋 Tabla de Contenidos
 
@@ -12,7 +13,7 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 - [Arquitectura](#️-arquitectura)
 - [Requisitos Previos](#-requisitos-previos)
 - [Inicio Rápido](#-inicio-rápido)
-- [Desarrollo](#-desarrollo)
+- [Desarrollo Local](#-desarrollo-local)
 - [Pruebas](#-pruebas)
 - [Calidad de Código](#-calidad-de-código)
 - [Documentación de API](#-documentación-de-api)
@@ -22,476 +23,843 @@ API REST robusta basada en NestJS para gestionar proyectos QA, indicadores de ej
 
 ## ✨ Características
 
-- **Gestión de Proyectos**: Crear, leer, actualizar y eliminar proyectos QA
-- **Soporte Multi-Pipeline**: Manejo de indicadores de pruebas de regresión, rendimiento y seguridad
-- **Cálculo de Métricas**: Cálculo automático de tasas de éxito, cobertura, tasas de error y puntajes de seguridad
-- **Autenticación de Usuarios**: Autenticación JWT con control de acceso basado en roles (Admin/Visor)
-- **Documentación de API**: Documentación interactiva Swagger/OpenAPI en `/api`
-- **Validación de Datos**: Validación exhaustiva de entradas usando class-validator
-- **Manejo de Errores**: Filtro global de excepciones para respuestas de error consistentes
-- **Health Checks**: Endpoint integrado de verificación de salud para monitoreo
-- **Flexibilidad de Base de Datos**: SQLite para desarrollo, PostgreSQL para producción
-- **Arquitectura Modular**: Separación clara de responsabilidades con módulos de NestJS
+- **Gestión de Proyectos**: CRUD completo de proyectos QA con métricas automáticas
+- **Soporte Multi-Pipeline**: Indicadores de regresión, rendimiento y seguridad
+- **Cálculo de Métricas**: Tasas de éxito, cobertura, error rate y security score
+- **Autenticación JWT**: Control de acceso basado en roles (Admin/Viewer)
+- **Single Table Design**: DynamoDB optimizado con GSI para queries eficientes
+- **Arquitectura Serverless**: AWS Lambda + DynamoDB con escalado automático
+- **Validación de Datos**: class-validator para validación exhaustiva
+- **Health Checks**: Monitoreo de estado de la aplicación
+- **Documentación Swagger**: API docs interactiva en `/api`
 
 ## 🏗️ Arquitectura
+
+### Arquitectura Serverless con AWS Lambda + DynamoDB
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       FRONTEND (CloudFront + S3)                  │
+│                          React + Vite SPA                         │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │ HTTPS API Calls
+                             ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                    API GATEWAY HTTP API                           │
+│  - RESTful endpoints                                              │
+│  - CORS configuration                                             │
+│  - CloudWatch logging                                             │
+└────────────────────────────┬─────────────────────────────────────┘
+                             ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                      AWS LAMBDA FUNCTION                          │
+│  - Runtime: Node.js 20.x                                          │
+│  - Handler: lambda.handler                                        │
+│  - Memory: 512 MB                                                 │
+│  - Timeout: 30s                                                   │
+│  - NestJS + Express (serverless-express)                          │
+│  - JWT Auth + RBAC                                                │
+└────────────────────────────┬─────────────────────────────────────┘
+                             ↓
+┌──────────────────────────────────────────────────────────────────┐
+│                       AMAZON DYNAMODB                             │
+│  Table: kata-backend-{stage}                                      │
+│  - Primary Key: PK (Hash), SK (Range)                             │
+│  - GSI1: Email lookup for users                                   │
+│  - GSI2: Product lookup for projects                              │
+│  - Single Table Design pattern                                    │
+│  - Billing: Pay-per-request                                       │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                   AWS SECRETS MANAGER                             │
+│  - /kata/{stage}/jwt-secret                                       │
+│  - Automatic rotation support                                     │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                     AMAZON CLOUDWATCH                             │
+│  - Lambda execution logs                                          │
+│  - API Gateway access logs                                        │
+│  - Custom metrics & alarms                                        │
+│  - Dashboard with key metrics                                     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Stack Tecnológico
+
+- **Framework**: NestJS 11.0
+- **Runtime**: Node.js 20.x
+- **Compute**: AWS Lambda (Serverless)
+- **Database**: Amazon DynamoDB (NoSQL)
+- **API Gateway**: API Gateway HTTP API
+- **IaC**: AWS CDK (TypeScript)
+- **Auth**: JWT + Role-Based Access Control
+- **Monitoring**: CloudWatch Logs & Metrics
+
+### Modelo de Datos (Single Table Design)
+
+#### Users
+
+```typescript
+PK: 'USER#{username}';
+SK: 'METADATA';
+GSI1PK: 'EMAIL#{email}';
+GSI1SK: 'USER#{username}';
+Attributes: (id, username, email, password(hashed), role, createdAt);
+```
+
+#### Projects
+
+```typescript
+PK: 'PROJECT#{prefix}';
+SK: 'METADATA';
+GSI2PK: 'PRODUCT#{product}';
+GSI2SK: 'PROJECT#{prefix}';
+Attributes: (id, prefix, product, totalDefinedTests, createdAt, updatedAt);
+```
+
+#### Indicators (Test Runs)
+
+```typescript
+PK: "PROJECT#{projectId}"
+SK: "INDICATOR#{timestamp}#{id}"
+Attributes: id, projectId, pipelineType, executionDate, totalTests,
+            passedTests, failedTests, errorRate, securityScore, etc.
+```
+
+### Ventajas de la Arquitectura
+
+#### ✅ Económica
+
+- **Pay-per-use**: Solo pagas por invocaciones reales
+- **Sin servidores 24/7**: Elimina costos de infraestructura idle
+- **DynamoDB on-demand**: Escala automáticamente sin provisioning
+- **~50% más barato** que ECS/Fargate para cargas variables
+
+#### ✅ Escalable
+
+- Lambda escala de 0 a miles de invocaciones automáticamente
+- DynamoDB maneja millones de requests/segundo
+- API Gateway soporta tráfico masivo sin configuración
+
+#### ✅ Serverless Real
+
+- Infraestructura 100% gestionada por AWS
+- Actualizaciones de seguridad automáticas
+- Alta disponibilidad multi-AZ por defecto
+- Zero server management
 
 ### Módulos
 
 ```
 src/
-├── projects-module/      # Gestión de proyectos QA
-├── indicators-module/    # Indicadores de pruebas y métricas
-├── users-module/        # Autenticación y autorización
-├── health/              # Endpoints de verificación de salud
-└── common/              # Utilidades compartidas, filtros, interceptores
+├── lambda.ts              # Lambda handler entry point
+├── main.ts                # Standalone server (desarrollo)
+├── app.module.ts          # Root module
+├── projects-module/       # Gestión de proyectos QA
+├── indicators-module/     # Indicadores y métricas
+├── users-module/          # Autenticación y autorización
+├── health/                # Health check endpoints
+└── common/
+    └── datasources/
+        └── dynamodb.datasource.ts  # DynamoDB access layer
+
+infrastructure/            # AWS CDK Infrastructure as Code
+├── bin/
+│   └── app.ts            # CDK app entry point
+└── lib/
+    └── kata-backend-stack.ts  # Lambda + DynamoDB stack
 ```
-
-### Tecnologías Clave
-
-- **NestJS** 11.0 - Framework progresivo de Node.js
-- **TypeORM** 0.3.x - ORM con soporte para múltiples bases de datos
-- **PostgreSQL** - Base de datos de producción
-- **SQLite** - Base de datos de desarrollo
-- **JWT** - Autenticación segura basada en tokens
-- **Swagger/OpenAPI** - Documentación interactiva de API
-- **class-validator** - Validación de DTOs
-- **Jest** - Framework de pruebas
 
 ## 📋 Requisitos Previos
 
 - **Node.js** v20 o superior
-- **npm** o **yarn**
-- **Docker** (opcional, para contenerización)
-- **AWS CLI** (para despliegue en la nube)
-- **PostgreSQL** (para entorno de producción)
+- **npm** v9 o superior
+- **Docker Desktop** (para DynamoDB Local)
+- **AWS CLI** v2 (para deployment)
+- **AWS CDK CLI** v2 (para infrastructure)
+
+### Instalación de Herramientas
+
+```bash
+# Verificar Node.js
+node --version  # Debe ser >= 20.x
+
+# Instalar AWS CLI (macOS)
+brew install awscli
+
+# Instalar AWS CDK CLI
+npm install -g aws-cdk
+
+# Verificar instalaciones
+aws --version
+cdk --version
+```
 
 ## 🚀 Inicio Rápido
 
-### 1. Instalar Dependencias
+### 1. Clonar e Instalar
 
 ```bash
+git clone <repository-url>
+cd kata_backend_project
 npm install
 ```
 
-### 2. Configurar Entorno
-
-Copia el archivo de entorno de ejemplo y configura tus variables:
+### 2. Configurar DynamoDB Local
 
 ```bash
-cp .env.example .env
+# Iniciar DynamoDB Local con Docker
+docker-compose up -d
+
+# Crear tabla local
+./create-dynamodb-table.sh
+
+# Verificar que está corriendo
+aws dynamodb list-tables --endpoint-url http://localhost:8000 --region us-east-1
 ```
 
-Edita `.env` con tu configuración local (base de datos, secreto JWT, etc.)
-
-### 3. Ejecutar la Aplicación
+### 3. Configurar Variables de Entorno
 
 ```bash
-# Modo desarrollo con recarga en caliente
+# Copiar archivo de ejemplo
+cp .env.example .env
+
+# Editar .env con tu configuración
+# Para desarrollo local, usa los valores por defecto
+```
+
+### 4. Ejecutar la Aplicación
+
+```bash
+# Modo desarrollo con hot-reload
 npm run start:dev
 
 # La API estará disponible en:
 # http://localhost:3000
-# Documentación Swagger en:
+#
+# Documentación Swagger:
 # http://localhost:3000/api
 ```
 
-### 4. Usuario Admin por Defecto
+### 5. Usuario Admin por Defecto
 
-La aplicación creará automáticamente un usuario administrador por defecto en el primer inicio:
-- **Usuario**: `admin`
-- **Contraseña**: `admin123`
+El primer inicio crea automáticamente:
 
-⚠️ **¡Cambia la contraseña por defecto inmediatamente en producción!**
+- **Username**: `admin`
+- **Email**: `admin@kata.com`
+- **Password**: `Admin@123`
+- **Role**: `admin`
 
-## 🔧 Desarrollo
+⚠️ **Cambiar la contraseña en producción inmediatamente**
 
-### Scripts Disponibles
+## 💻 Desarrollo Local
+
+### DynamoDB Local Setup
+
+El proyecto usa DynamoDB Local para desarrollo sin necesidad de AWS:
+
+```bash
+# Iniciar DynamoDB
+docker-compose up -d
+
+# Crear tabla
+./create-dynamodb-table.sh
+
+# Ver contenido de la tabla
+aws dynamodb scan \
+  --table-name kata-backend-local \
+  --endpoint-url http://localhost:8000 \
+  --region us-east-1
+
+# Detener DynamoDB
+docker-compose down
+
+# Reset completo (borra datos)
+docker-compose down -v
+docker-compose up -d
+./create-dynamodb-table.sh
+```
+
+### Scripts de Desarrollo
 
 ```bash
 # Desarrollo
 npm run start          # Iniciar aplicación
-npm run start:dev      # Iniciar con recarga en caliente
-npm run start:debug    # Iniciar en modo debug
+npm run start:dev      # Hot-reload development
+npm run start:debug    # Debug mode
 
 # Build
 npm run build          # Compilar para producción
 
-# Calidad de Código
-npm run format         # Formatear código con Prettier
-npm run lint           # Analizar código con ESLint
-npm run lint:fix       # Corregir problemas de linting
+# Calidad
+npm run format         # Formatear con Prettier
+npm run lint           # ESLint
+npm run lint:fix       # Auto-fix linting issues
 
-# Pruebas
-npm run test           # Ejecutar pruebas unitarias
-npm run test:watch     # Ejecutar pruebas en modo watch
-npm run test:cov       # Ejecutar pruebas con cobertura
-npm run test:e2e       # Ejecutar pruebas end-to-end
+# Testing
+npm run test           # Unit tests
+npm run test:watch     # Watch mode
+npm run test:cov       # Con cobertura
+npm run test:e2e       # End-to-end tests
 ```
 
-### Usar Docker Localmente
+### Ejecutar en Modo Local vs Lambda
 
 ```bash
-# Construir imagen Docker
-docker build -t kata-backend:local .
+# Modo servidor standalone (desarrollo)
+npm run start:dev
+# → http://localhost:3000
 
-# Ejecutar contenedor con archivo de entorno
-docker run -p 3000:3000 --env-file .env kata-backend:local
-
-# O usando el script de compilación local
-./ci-cd/local-build.sh qa
+# Modo Lambda local (testing)
+# Usar AWS SAM Local o Serverless Offline
+sam local start-api
 ```
 
 ## 🧪 Pruebas
 
-### Ejecutar Pruebas
+### Ejecutar Tests
 
 ```bash
-# Ejecutar todas las pruebas unitarias
+# Tests unitarios
 npm run test
 
-# Ejecutar pruebas en modo watch (desarrollo)
+# Watch mode (desarrollo)
 npm run test:watch
 
-# Ejecutar pruebas con reporte de cobertura
+# Cobertura de código
 npm run test:cov
 
-# Ejecutar pruebas end-to-end
+# Tests end-to-end
 npm run test:e2e
 
-# Depurar pruebas
+# Debug tests
 npm run test:debug
 ```
 
 ### Cobertura de Pruebas
 
-Después de ejecutar `npm run test:cov`, los reportes de cobertura estarán disponibles en:
-- **Consola**: Resumen en terminal
+Los reportes de cobertura se generan en:
+
+- **Terminal**: Resumen en consola
 - **HTML**: `coverage/lcov-report/index.html`
-- **LCOV**: `coverage/lcov.info` (para herramientas CI/CD)
+- **LCOV**: `coverage/lcov.info` (para CI/CD)
 
-### Mejores Prácticas de Pruebas
+### Objetivo de Cobertura
 
-- Escribe pruebas para toda la lógica de negocio
-- Apunta a >80% de cobertura de código
-- Usa mocks para dependencias externas
-- Prueba casos límite y escenarios de error
+- **Target**: >80% de cobertura
+- **Crítico**: Lógica de negocio, servicios, DTOs
+- **Opcional**: Controllers (cubiertos por e2e tests)
 
 ## 🔍 Calidad de Código
 
-### Análisis con SonarQube
-
-Ejecuta análisis de calidad de código con SonarQube:
+### ESLint
 
 ```bash
-# Instalar scanner de SonarQube (si no está instalado)
-npm install -g sonarqube-scanner
+# Verificar código
+npm run lint
 
-# Ejecutar análisis (reemplaza con tu token)
-sonar-scanner -Dsonar.login=TU_TOKEN_SONARQUBE
+# Auto-fix issues
+npm run lint:fix
 ```
 
-**Configuración**: La configuración del proyecto está en `sonar-project.properties`
-
-### Formateo de Código con Prettier
+### Prettier
 
 ```bash
 # Formatear todos los archivos
 npm run format
 
-# Verificar formateo
+# Verificar formato
 npm run format:check
 ```
 
-### ESLint
+### SonarQube
 
 ```bash
-# Ejecutar linter
-npm run lint
-
-# Corregir problemas auto-corregibles
-npm run lint:fix
+# Análisis de calidad (requiere SonarQube running)
+sonar-scanner \
+  -Dsonar.projectKey=kata_backend_project \
+  -Dsonar.sources=src \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.login=YOUR_TOKEN
 ```
 
-## � API Documentation
+**Configuración**: Ver `sonar-project.properties`
+
+### Métricas de Calidad
+
+- ✅ **0 Bugs**: Código libre de bugs críticos
+- ✅ **0 Vulnerabilities**: Sin vulnerabilidades de seguridad
+- ✅ **0 Code Smells**: Código limpio y mantenible
+- ✅ **Compilación Limpia**: Sin errores TypeScript
+- ✅ **Linter Clean**: 0 errores ESLint
+
+## 📚 Documentación de API
 
 ### Swagger/OpenAPI
 
-Interactive API documentation is available when the application is running:
+Documentación interactiva disponible cuando la aplicación está corriendo:
 
-**Local**: [http://localhost:3000/api](http://localhost:3000/api)
+**Local**: http://localhost:3000/api
 
-The Swagger UI provides:
-- Complete API reference for all endpoints
-- Request/response schemas
-- Try-it-out functionality
-- Authentication testing
+La interfaz Swagger proporciona:
 
-### Main API Endpoints
+- Referencia completa de todos los endpoints
+- Schemas de request/response
+- Funcionalidad "Try it out"
+- Testing de autenticación
+
+### Endpoints Principales
 
 ```
-POST   /auth/login              # User authentication
-POST   /auth/register           # User registration
+POST   /auth/login                      # Autenticación
+GET    /auth/profile                    # Perfil del usuario
 
-GET    /projects                # List all projects
-POST   /projects                # Create new project
-GET    /projects/:id            # Get project details
-PUT    /projects/:id            # Update project
-DELETE /projects/:id            # Delete project
+GET    /projects                        # Listar proyectos
+POST   /projects                        # Crear proyecto
+GET    /projects/:id                    # Detalles del proyecto
+GET    /projects/:id/metrics            # Métricas del proyecto
+PUT    /projects/:id                    # Actualizar proyecto
+DELETE /projects/:id                    # Eliminar proyecto
 
-GET    /indicators              # List indicators
-POST   /indicators              # Create indicator
-GET    /indicators/project/:id  # Get project indicators
+POST   /indicators/test-run             # Crear test run
+GET    /indicators/project/:projectId   # Test runs del proyecto
+DELETE /indicators/:id                  # Eliminar test run
+DELETE /indicators/project/:projectId/all  # Eliminar todos los test runs
 
-GET    /users                   # List users (admin only)
-POST   /users                   # Create user (admin only)
+GET    /users                           # Listar usuarios (admin)
+POST   /users                           # Crear usuario (admin)
+GET    /users/:id                       # Detalles del usuario
+PUT    /users/:id/role                  # Actualizar rol (admin)
+DELETE /users/:id                       # Eliminar usuario (admin)
 
-GET    /health                  # Health check endpoint
+GET    /health                          # Health check
+```
+
+### Autenticación
+
+Todos los endpoints (excepto `/auth/login` y `/health`) requieren JWT token:
+
+```bash
+# 1. Login
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@kata.com","password":"Admin@123"}'
+
+# 2. Usar token en requests
+curl http://localhost:3000/projects \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## 📦 Despliegue
 
-Este proyecto está configurado para despliegue en **AWS ECS/Fargate** con Docker.
-
-### 🏗️ Arquitectura de Despliegue
+### Arquitectura de Deployment
 
 ```
-┌─────────────┐      ┌──────────────┐      ┌─────────┐
-│   GitHub    │─────▶│  CodeBuild   │─────▶│   ECR   │
-│  (Source)   │      │(Build Docker)│      │ Registry│
-└─────────────┘      └──────────────┘      └────┬────┘
-                                                  │
-                                                  ▼
-                                           ┌─────────────┐
-                                           │     ECS     │
-                                           │  (Fargate)  │
-                                           └─────────────┘
-                                                  │
-                                           ┌──────▼───────┐
-                                           │  PostgreSQL  │
-                                           │     RDS      │
-                                           └──────────────┘
+GitHub → CodePipeline → CodeBuild → Lambda Function
+                                          ↓
+                                    DynamoDB
 ```
 
-### 🚀 Despliegue Rápido
+### Pre-requisitos de AWS
+
+1. **AWS Account** con permisos de:
+   - Lambda, API Gateway, DynamoDB
+   - CloudWatch, Secrets Manager
+   - IAM, CloudFormation
+
+2. **AWS CLI configurado**:
 
 ```bash
-# 1. Verificar configuración
-./ci-cd/verify-deployment-config.sh
-
-# 2. Compilación y prueba local
-./ci-cd/local-build.sh qa
-
-# 3. Desplegar (crea tag de git y activa CI/CD)
-./ci-cd/deploy.sh
+aws configure
+# AWS Access Key ID: YOUR_KEY
+# AWS Secret Access Key: YOUR_SECRET
+# Default region: us-east-1
 ```
 
-### 🏗️ Configuración Inicial
+3. **CDK Bootstrap** (primera vez):
 
-1. **Configurar Infraestructura AWS** (configuración única)
-   ```bash
-   # Crear VPC, RDS, Cluster ECS, Repositorio ECR
-   # Ver DEPLOYMENT.md para instrucciones detalladas
-   ```
+```bash
+cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
+```
 
-2. **Reemplazar Placeholders**
-   ```bash
-   # Reemplazar YOUR_AWS_ACCOUNT_ID en todos los archivos de configuración
-   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-   find . -type f \( -name "*.yml" -o -name "*.json" \) -exec sed -i '' "s/YOUR_AWS_ACCOUNT_ID/$AWS_ACCOUNT_ID/g" {} +
-   ```
+### Deployment - Infraestructura (Una vez)
 
-3. **Configurar Secretos en AWS SSM Parameter Store**
-   ```bash
-   # QA Environment
-   aws ssm put-parameter --name /kata/qa/db_host --value "tu-db-qa.rds.amazonaws.com" --type String
-   aws ssm put-parameter --name /kata/qa/db_username --value "kata_user" --type String
-   aws ssm put-parameter --name /kata/qa/db_password --value "PASSWORD_SEGURO" --type SecureString
-   aws ssm put-parameter --name /kata/qa/db_database --value "kata_qa" --type String
-   aws ssm put-parameter --name /kata/qa/jwt_secret --value "JWT_SECRET_SEGURO" --type SecureString
-   aws ssm put-parameter --name /kata/qa/cors_origin --value "https://qa-frontend.com" --type String
-   aws ssm put-parameter --name /kata/qa/internal_token --value "TOKEN_INTERNO" --type SecureString
-   
-   # Repetir para staging y production
-   ```
+```bash
+cd infrastructure
+npm install
 
-4. **Construir y Subir Imagen Docker**
-   ```bash
-   # Login a ECR
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-   
-   # Construir imagen
-   docker build -t kata-backend:qa .
-   
-   # Etiquetar y subir a ECR
-   docker tag kata-backend:qa ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
-   docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/kata-backend:qa-latest
-   ```
+# Deploy staging
+cdk deploy KataBackendStagingStack
 
-### 🌍 Entornos
+# Deploy production
+cdk deploy KataBackendProductionStack
+```
 
-| Ambiente   | ECR Repository    | ECS Service                      | Branch    |
-|------------|-------------------|----------------------------------|-----------|
-| QA         | `kata-backend`    | `kata-backend-qa-service`       | `develop` |
-| Staging    | `kata-backend`    | `kata-backend-staging-service`  | `staging` |
-| Production | `kata-backend`    | `kata-backend-production-service`| `main`   |
+Esto crea:
 
-### 🔄 Proceso de Despliegue Automático
+- Lambda function
+- API Gateway
+- DynamoDB table
+- Secrets Manager secret
+- CloudWatch logs & dashboard
+- IAM roles & policies
 
-#### Via CodeBuild (AWS CodePipeline)
+### Deployment - Código Lambda
 
-1. Push a branch específico activa el pipeline
-2. CodeBuild ejecuta el buildspec correspondiente:
-   - `buildspec.yml` (producción)
-   - `pipeline/buildspecs/buildspec.qa.yml`
-   - `pipeline/buildspecs/buildspec.staging.yml`
-3. CodeBuild construye imagen Docker
-4. Imagen se sube a ECR
-5. Task definition de ECS se actualiza
-6. ECS despliega el nuevo contenedor
+#### Opción 1: Manual
 
-#### Via GitHub Actions
+```bash
+# Build
+npm run build
 
-Workflows configurados:
-- `.github/workflows/deploy-production.yml` → main branch
-- `.github/workflows/deploy-qa.yml` → develop branch
-- `.github/workflows/deploy-staging.yml` → staging branch
+# Crear ZIP
+cd dist
+zip -r ../lambda-deployment.zip .
+cd ..
+zip -r lambda-deployment.zip node_modules
 
-### ⚠️ Notas Importantes
+# Deploy a Lambda
+aws lambda update-function-code \
+  --function-name kata-backend-staging \
+  --zip-file fileb://lambda-deployment.zip \
+  --region us-east-1
+```
 
-**Secrets Management**: Todas las credenciales sensibles (DB passwords, JWT secrets) se almacenan en AWS Systems Manager Parameter Store y se inyectan en tiempo de ejecución.
+#### Opción 2: CI/CD con CodePipeline
 
-**Health Checks**: El endpoint `/health` es usado por ECS para verificar que el contenedor está saludable. Si falla, ECS automáticamente reemplaza el contenedor.
+```bash
+# Push a branch específico
+git push origin develop    # → QA
+git push origin staging    # → Staging
+git push origin main       # → Production
+```
 
-**Database Migrations**: Asegúrate de ejecutar migraciones manualmente antes del despliegue si `DB_SYNCHRONIZE=false`.
+CodePipeline automáticamente:
 
-### 💰 Estimación de Costos (Mensual)
+1. Detecta cambios
+2. Ejecuta CodeBuild con buildspec correspondiente
+3. Compila TypeScript
+4. Crea ZIP
+5. Actualiza Lambda function
 
-| Servicio      | Costo Estimado |
-|---------------|----------------|
-| ECS Fargate   | ~$25-40       |
-| RDS (t3.micro)| ~$15-20       |
-| ECR Storage   | ~$1-2         |
-| ALB           | ~$20          |
-| CodeBuild     | ~$2-5         |
-| **Total**     | **~$65-90/mes** |
+### Buildspecs por Ambiente
 
-*Basado en uso moderado con 1 tarea Fargate (0.5 vCPU, 1GB RAM) por ambiente.*
+- `buildspec-lambda.yml` → Production
+- `buildspec-lambda-qa.yml` → QA
+- `buildspec-lambda-staging.yml` → Staging
+
+### Verificar Deployment
+
+```bash
+# Obtener URL del API Gateway
+aws cloudformation describe-stacks \
+  --stack-name KataBackendStagingStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+  --output text
+
+# Test health endpoint
+curl https://YOUR_API_ENDPOINT/health
+```
+
+### Gestión de Secrets
+
+```bash
+# Ver JWT secret
+aws secretsmanager get-secret-value \
+  --secret-id /kata/staging/jwt-secret \
+  --region us-east-1
+
+# Actualizar secret
+aws secretsmanager put-secret-value \
+  --secret-id /kata/staging/jwt-secret \
+  --secret-string "new-super-secret-key" \
+  --region us-east-1
+```
+
+### Monitoreo Post-Deployment
+
+**CloudWatch Dashboard** incluye:
+
+- Lambda invocations & errors
+- Lambda duration (p50, p90, p99)
+- API Gateway requests & latency
+- DynamoDB read/write capacity
+
+**Logs**:
+
+```bash
+# Ver logs de Lambda
+aws logs tail /aws/lambda/kata-backend-staging --follow
+
+# Filtrar errores
+aws logs filter-pattern /aws/lambda/kata-backend-staging \
+  --filter-pattern "ERROR"
+```
+
+### Rollback
+
+```bash
+# Listar versiones de Lambda
+aws lambda list-versions-by-function \
+  --function-name kata-backend-staging
+
+# Rollback a versión anterior
+aws lambda update-alias \
+  --function-name kata-backend-staging \
+  --name CURRENT \
+  --function-version 42  # versión anterior estable
+```
+
+### Estimación de Costos
+
+| Servicio        | Uso                           | Costo Mensual |
+| --------------- | ----------------------------- | ------------- |
+| Lambda          | 1M requests, 512MB, 500ms avg | ~$4           |
+| API Gateway     | 1M requests                   | ~$3.50        |
+| DynamoDB        | 1M writes, 5M reads           | ~$5           |
+| Secrets Manager | 1 secret                      | ~$0.40        |
+| CloudWatch      | Logs + metrics                | ~$2           |
+| **TOTAL**       |                               | **~$15/mes**  |
+
+_Basado en uso moderado. Sin tráfico = ~$2.40/mes (solo Secrets + logs básicos)_
 
 ## 🔐 Variables de Entorno
 
-### Variables Requeridas
-
-Crea un archivo `.env` (usa `.env.example` como plantilla):
+### Archivo .env (Desarrollo Local)
 
 ```bash
-# Aplicación
-NODE_ENV=development          # development | production
-PORT=3000                     # Puerto del servidor
+# Application
+NODE_ENV=development
+PORT=3000
 
-# Base de Datos
-DB_TYPE=sqlite                # sqlite | postgres | mysql
-DB_HOST=localhost             # Para postgres/mysql
-DB_PORT=5432                  # Puerto de la base de datos
-DB_USERNAME=kata_user         # Usuario de la base de datos
-DB_PASSWORD=your_password     # Contraseña de la base de datos
-DB_DATABASE=kata_backend      # Nombre de la base de datos
-DB_SYNCHRONIZE=true           # Auto-sincronizar esquema (¡solo dev!)
-DB_LOGGING=false              # Habilitar logging SQL
+# DynamoDB Local
+DYNAMODB_TABLE_NAME=kata-backend-local
+DYNAMODB_ENDPOINT=http://localhost:8000
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=dummy
+AWS_SECRET_ACCESS_KEY=dummy
 
-# Autenticación JWT
-JWT_SECRET=tu-clave-secreta-cambiar-en-produccion
-JWT_EXPIRATION=24h            # Tiempo de expiración del token
+# JWT
+JWT_SECRET=your-super-secret-jwt-key-change-this
+JWT_EXPIRATION=24h
 
 # CORS
-CORS_ORIGIN=http://localhost:5173    # URL del frontend
-
-# Logging
-LOG_LEVEL=debug               # error | warn | info | debug
+CORS_ORIGINS=http://localhost:5173,http://localhost:5174
 ```
 
-### Archivos Específicos por Entorno
+### Variables en AWS Lambda
 
-- `.env` - Desarrollo local (no en git)
-- `.env.example` - Plantilla (en git)
-- `.env.qa` - Placeholders de QA (excluido de git)
-- `.env.staging` - Placeholders de Staging (excluido de git)
-- `.env.production` - Placeholders de Producción (excluido de git)
+Configuradas automáticamente por CDK:
 
-⚠️ **¡Nunca hagas commit de archivos `.env` con credenciales reales a git!**
+- `NODE_ENV`: production/staging/qa
+- `DYNAMODB_TABLE_NAME`: kata-backend-{stage}
+- `AWS_REGION`: us-east-1
+- `JWT_SECRET_ARN`: ARN del secret en Secrets Manager
+- `CORS_ORIGINS`: URLs permitidas
+
+### Generar JWT Secret Seguro
+
+```bash
+# Generar secret de 64 caracteres
+openssl rand -base64 64
+
+# Usar en .env o Secrets Manager
+```
 
 ## 🗂️ Estructura del Proyecto
 
 ```
 kata_backend_project/
 ├── src/
-│   ├── projects-module/           # Gestión de proyectos
-│   │   ├── projects.controller.ts
-│   │   ├── projects.service.ts
-│   │   ├── projects.entity.ts
-│   │   └── dto/
-│   ├── indicators-module/         # Indicadores de pruebas
+│   ├── app.module.ts                    # Root module
+│   ├── main.ts                          # Standalone server entry
+│   ├── lambda.ts                        # Lambda handler entry
+│   │
+│   ├── projects-module/
+│   │   ├── projects.controller.ts       # REST endpoints
+│   │   ├── projects.service.ts          # Business logic
+│   │   ├── dto/                         # Data Transfer Objects
+│   │   │   ├── create-project.dto.ts
+│   │   │   ├── update-project.dto.ts
+│   │   │   └── project-metrics.dto.ts
+│   │   └── projects.module.ts
+│   │
+│   ├── indicators-module/
 │   │   ├── indicators.controller.ts
 │   │   ├── indicators.service.ts
-│   │   ├── indicators.entity.ts
-│   │   └── metrics-calculator.service.ts
-│   ├── users-module/              # Autenticación
+│   │   ├── metrics-calculator.service.ts  # Cálculo de métricas
+│   │   ├── dto/
+│   │   │   ├── create-indicator.dto.ts
+│   │   │   └── indicator.dto.ts
+│   │   └── indicators.module.ts
+│   │
+│   ├── users-module/
 │   │   ├── users.controller.ts
 │   │   ├── users.service.ts
-│   │   └── users.entity.ts
-│   ├── health/                    # Verificación de salud
+│   │   ├── user-role.enum.ts            # ADMIN | VIEWER
+│   │   ├── guards/
+│   │   │   ├── auth.guard.ts            # JWT validation
+│   │   │   └── roles.guard.ts           # RBAC
+│   │   ├── dto/
+│   │   │   ├── create-user.dto.ts
+│   │   │   ├── login-user.dto.ts
+│   │   │   └── user-response.dto.ts
+│   │   └── users.module.ts
+│   │
+│   ├── health/
 │   │   ├── health.controller.ts
 │   │   └── health.module.ts
-│   ├── common/                    # Código compartido
-│   │   ├── filters/
-│   │   ├── interceptors/
-│   │   └── constants/
-│   ├── app.module.ts              # Módulo principal
-│   └── main.ts                    # Punto de entrada
-├── test/                          # Pruebas E2E
-├── pipeline/                      # Configuraciones de despliegue AWS
-│   ├── buildspecs/
-│   └── service/
-├── ci-cd/                         # Scripts CI/CD
-├── .env.example                   # Plantilla de entorno
-├── Dockerfile                     # Imagen Docker de producción
-├── nest-cli.json                  # Configuración de NestJS
-├── package.json                   # Dependencias
-├── tsconfig.json                  # Configuración de TypeScript
-└── README.md                      # Este archivo
+│   │
+│   └── common/
+│       ├── constants/
+│       │   └── error-messages.ts
+│       └── datasources/
+│           └── dynamodb.datasource.ts   # DynamoDB client wrapper
+│
+├── infrastructure/                       # AWS CDK IaC
+│   ├── bin/
+│   │   └── app.ts                       # CDK app
+│   ├── lib/
+│   │   └── kata-backend-stack.ts        # Stack definition
+│   ├── cdk.json
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── test/
+│   ├── app.e2e-spec.ts                  # E2E tests
+│   └── jest-e2e.json
+│
+├── ci-cd/                                # Scripts de deployment
+│   ├── deploy.sh
+│   ├── install-dependencies.sh
+│   ├── local-build.sh
+│   └── verify-deployment-config.sh
+│
+├── buildspec-lambda.yml                 # Production CodeBuild
+├── buildspec-lambda-qa.yml              # QA CodeBuild
+├── buildspec-lambda-staging.yml         # Staging CodeBuild
+│
+├── docker-compose.yml                   # DynamoDB Local
+├── create-dynamodb-table.sh             # Setup script
+│
+├── .env.example                         # Environment template
+├── eslint.config.mjs                    # ESLint config
+├── .prettierrc                          # Prettier config
+├── sonar-project.properties             # SonarQube config
+│
+├── package.json
+├── tsconfig.json
+├── tsconfig.build.json
+├── nest-cli.json
+└── README.md
 ```
+
+## 🔒 Seguridad
+
+### Implementadas
+
+- ✅ **JWT Authentication**: Tokens seguros con expiración
+- ✅ **Role-Based Access Control**: Admin/Viewer roles
+- ✅ **Password Hashing**: bcrypt con salt rounds
+- ✅ **Secrets Management**: AWS Secrets Manager
+- ✅ **Input Validation**: class-validator en todos los DTOs
+- ✅ **CORS Configurado**: Origenes permitidos por ambiente
+- ✅ **Security Groups**: Acceso restringido en Lambda
+- ✅ **HTTPS Only**: API Gateway con TLS
+- ✅ **IAM Least Privilege**: Permisos mínimos necesarios
+
+### Best Practices
+
+1. **Nunca** commitear secrets en git
+2. Rotar JWT secrets regularmente
+3. Usar Secrets Manager para credentials
+4. Habilitar CloudTrail para auditoría
+5. Configurar WAF en API Gateway (producción)
+6. Rate limiting en endpoints públicos
+7. Input sanitization en todos los endpoints
 
 ## 🤝 Contribuir
 
-1. Haz fork del repositorio
-2. Crea tu rama de funcionalidad (`git checkout -b feature/CaracteristicaIncreible`)
-3. Haz commit de tus cambios (`git commit -m 'Agregar alguna CaracteristicaIncreible'`)
-4. Haz push a la rama (`git push origin feature/CaracteristicaIncreible`)
-5. Abre un Pull Request
+### Workflow de Desarrollo
 
-### Guías de Desarrollo
+1. Fork del repositorio
+2. Crear feature branch: `git checkout -b feature/nueva-funcionalidad`
+3. Commit cambios: `git commit -m 'feat: agregar nueva funcionalidad'`
+4. Push a branch: `git push origin feature/nueva-funcionalidad`
+5. Crear Pull Request
 
-- Sigue el estilo de código existente
-- Escribe pruebas unitarias para nuevas funcionalidades
-- Actualiza la documentación según sea necesario
-- Ejecuta linting y pruebas antes de hacer commit
+### Convenciones de Código
 
-## 📝 Licencia
+- **Style Guide**: Seguir Airbnb TypeScript Style Guide
+- **Commits**: Usar Conventional Commits
+  - `feat:` nueva funcionalidad
+  - `fix:` corrección de bug
+  - `docs:` cambios en documentación
+  - `refactor:` refactorización de código
+  - `test:` agregar o actualizar tests
+- **Linting**: Ejecutar `npm run lint:fix` antes de commit
+- **Testing**: Mantener >80% cobertura
+- **PR**: Incluir descripción detallada y screenshots si aplica
 
-Este proyecto es privado y propietario.
+### Checklist Pre-PR
+
+- [ ] Código compila sin errores (`npm run build`)
+- [ ] Tests pasan (`npm run test`)
+- [ ] Linter limpio (`npm run lint`)
+- [ ] Cobertura >80% (`npm run test:cov`)
+- [ ] Documentación actualizada
+- [ ] Variables de entorno documentadas en `.env.example`
+- [ ] Commit messages siguen convención
 
 ## 📞 Soporte
 
-Para problemas o preguntas:
-- Crea un issue en el repositorio
-- Contacta al equipo de desarrollo
+### Issues
 
-## 🔗 Recursos Relacionados
+Para reportar bugs o solicitar features:
 
-- [Documentación de NestJS](https://docs.nestjs.com)
-- [Documentación de TypeORM](https://typeorm.io)
-- [Documentación de AWS ECS](https://docs.aws.amazon.com/ecs/)
-- [JWT.io](https://jwt.io) - Depurador de JWT
+1. Verificar que no exista un issue similar
+2. Crear nuevo issue con template apropiado
+3. Incluir pasos para reproducir
+4. Adjuntar logs relevantes
+
+### Contacto
+
+- **Equipo de Desarrollo**: [dev-team@example.com](mailto:dev-team@example.com)
+- **Issues**: https://github.com/your-org/kata-backend/issues
+- **Wiki**: https://github.com/your-org/kata-backend/wiki
+
+## 📝 Changelog
+
+Ver [CHANGELOG.md](CHANGELOG.md) para historial de cambios.
+
+## 📄 Licencia
+
+Este proyecto es privado y propietario.
+
+## 🔗 Recursos Útiles
+
+### Documentación Oficial
+
+- [NestJS Docs](https://docs.nestjs.com)
+- [AWS Lambda Docs](https://docs.aws.amazon.com/lambda/)
+- [DynamoDB Developer Guide](https://docs.aws.amazon.com/dynamodb/)
+- [AWS CDK Docs](https://docs.aws.amazon.com/cdk/)
+- [JWT.io](https://jwt.io) - JWT debugger
+
+### Single Table Design
+
+- [The DynamoDB Book](https://www.dynamodbbook.com)
+- [AWS re:Invent - Advanced Design Patterns](https://www.youtube.com/watch?v=6yqfmXiZTlM)
+
+### Serverless Best Practices
+
+- [Serverless Architecture Patterns](https://serverlessland.com/patterns)
+- [AWS Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning)
 
 ---
 
-**Construido con ❤️ usando NestJS**
+**Construido con ❤️ usando NestJS + AWS Serverless**
+
+_Última actualización: Diciembre 2025_

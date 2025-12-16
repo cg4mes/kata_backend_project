@@ -1,197 +1,281 @@
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
+	Injectable,
+	NotFoundException,
+	ConflictException,
+	BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Project } from './projects.entity';
-import { Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
-import { Indicators } from '../indicators-module/indicators.entity';
-import {
-  ProjectWithMetricsDto,
-  ProjectMetricsDto,
-} from './dto/project-with-metrics.dto';
+import { ProjectWithMetricsDto, ProjectMetricsDto } from './dto/project-with-metrics.dto';
+import { DynamoDBDatasource } from '../common/datasources/dynamodb.datasource';
 
 @Injectable()
 export class ProjectsService {
-  constructor(
-    @InjectRepository(Project)
-    private readonly projectRepository: Repository<Project>,
-    @InjectRepository(Indicators)
-    private readonly indicatorsRepository: Repository<Indicators>,
-  ) {}
+	constructor(private readonly dynamodb: DynamoDBDatasource) {}
 
-  // Devuelve todos los equipos con sus métricas calculadas
-  async findAllWithMetrics(): Promise<ProjectWithMetricsDto[]> {
-    const projects = await this.projectRepository.find();
+	// Devuelve todos los equipos con sus métricas calculadas
+	async findAllWithMetrics(): Promise<ProjectWithMetricsDto[]> {
+		const projects = await this.findAll();
 
-    return Promise.all(
-      projects.map(async (project) => {
-        const metrics = await this.calculateProjectMetrics(project.id);
-        return {
-          ...project,
-          metrics,
-        };
-      }),
-    );
-  }
+		return Promise.all(
+			projects.map(async (project: Record<string, any>) => {
+				// Usar prefix en lugar de id para calcular métricas
+				const metrics = await this.calculateProjectMetricsByPrefix(project.prefix as string);
+				return this.toProjectWithMetricsDto(project, metrics);
+			})
+		);
+	}
 
-  // Devuelve todos los equipos (sin métricas)
-  async findAll(): Promise<Project[]> {
-    return this.projectRepository.find();
-  }
+	// Mapea un proyecto de DynamoDB a ProjectWithMetricsDto (solo campos necesarios)
+	private toProjectWithMetricsDto(
+		project: Record<string, any>,
+		metrics: ProjectMetricsDto
+	): ProjectWithMetricsDto {
+		return {
+			id: project.id as string,
+			product: project.product as string,
+			prefix: project.prefix as string,
+			totalDefinedTests: project.totalDefinedTests as number,
+			createdAt: new Date(project.createdAt as string),
+			updatedAt: new Date(project.updatedAt as string),
+			metrics,
+		};
+	}
 
-  // Calcula las métricas para un proyecto específico
-  private async calculateProjectMetrics(
-    projectId: string,
-  ): Promise<ProjectMetricsDto> {
-    // Obtener todos los indicadores del proyecto
-    const indicators = await this.indicatorsRepository.find({
-      where: { projectId },
-      order: { runDate: 'ASC' },
-    });
+	// Devuelve todos los equipos (sin métricas)
+	async findAll(): Promise<any[]> {
+		// Para obtener todos los proyectos, necesitamos hacer un scan
+		// ya que cada proyecto tiene un PK diferente (PROJECT#{prefix})
+		// Filtramos por EntityType y que el SK sea METADATA para obtener solo los metadatos del proyecto
+		const items = await this.dynamodb.scan({
+			filter: 'EntityType = :type AND SK = :sk',
+			filterValues: { ':type': 'Project', ':sk': 'METADATA' },
+		});
+		return items;
+	}
 
-    if (indicators.length === 0) {
-      return {
-        averageSuccessRate: 0,
-        currentCoverage: 0,
-        testRunsCount: 0,
-        averageErrorRate: 0,
-        averageSecurityScore: 100,
-      };
-    }
+	// Calcula las métricas para un proyecto específico usando su prefix
+	private async calculateProjectMetricsByPrefix(prefix: string): Promise<ProjectMetricsDto> {
+		// Obtener todos los indicadores del proyecto
+		// Los indicators están guardados con PK=PROJECT#{prefix}, SK=INDICATOR#{timestamp}#{id}
+		const indicators = await this.dynamodb.query(`PROJECT#${prefix}`, {
+			skBeginsWith: 'INDICATOR#',
+		});
 
-    // Filtrar por tipo de pipeline
-    const regressionIndicators = indicators.filter(
-      (i) => i.pipelineType === 'regression',
-    );
-    const performanceIndicators = indicators.filter(
-      (i) => i.pipelineType === 'performance',
-    );
-    const securityIndicators = indicators.filter(
-      (i) => i.pipelineType === 'security',
-    );
+		if (indicators.length === 0) {
+			return {
+				averageSuccessRate: 0,
+				currentCoverage: 0,
+				testRunsCount: 0,
+				averageErrorRate: 0,
+				averageSecurityScore: 100,
+			};
+		}
 
-    // Calcular métricas de regression
-    let averageSuccessRate = 0;
-    let currentCoverage = 0;
-    if (regressionIndicators.length > 0) {
-      const totalSuccessRate = regressionIndicators.reduce(
-        (sum, indicator) => sum + (indicator.executionSuccessRate ?? 0),
-        0,
-      );
-      averageSuccessRate = totalSuccessRate / regressionIndicators.length;
-      currentCoverage =
-        regressionIndicators[regressionIndicators.length - 1]
-          .automationCoverage ?? 0;
-    }
+		// Ordenar por runDate ascendente
+		indicators.sort(
+			(a: Record<string, any>, b: Record<string, any>) =>
+				new Date(a.runDate as string).getTime() - new Date(b.runDate as string).getTime()
+		);
 
-    // Calcular métricas de performance
-    let averageErrorRate = 0;
-    if (performanceIndicators.length > 0) {
-      let totalErrorRate = 0;
-      for (const indicator of performanceIndicators) {
-        if (indicator.errorRate !== null && indicator.errorRate !== undefined) {
-          totalErrorRate += indicator.errorRate;
-        }
-      }
-      averageErrorRate = totalErrorRate / performanceIndicators.length;
-    }
+		// Filtrar por tipo de pipeline
+		const regressionIndicators = indicators.filter(
+			(i: Record<string, any>) => i.pipelineType === 'regression'
+		);
+		const performanceIndicators = indicators.filter(
+			(i: Record<string, any>) => i.pipelineType === 'performance'
+		);
+		const securityIndicators = indicators.filter(
+			(i: Record<string, any>) => i.pipelineType === 'security'
+		);
 
-    // Calcular métricas de security
-    let averageSecurityScore = 100;
-    if (securityIndicators.length > 0) {
-      let totalSecurityScore = 0;
-      for (const indicator of securityIndicators) {
-        totalSecurityScore +=
-          indicator.securityScore !== null &&
-          indicator.securityScore !== undefined
-            ? indicator.securityScore
-            : 100;
-      }
-      averageSecurityScore = totalSecurityScore / securityIndicators.length;
-    }
+		// Calcular métricas de regression
+		let averageSuccessRate = 0;
+		let currentCoverage = 0;
+		if (regressionIndicators.length > 0) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const totalSuccessRate = regressionIndicators.reduce(
+				(sum: number, indicator: Record<string, any>) =>
+					sum + Number(indicator.executionSuccessRate || 0),
+				0
+			);
+			averageSuccessRate = totalSuccessRate / regressionIndicators.length;
 
-    return {
-      averageSuccessRate,
-      currentCoverage,
-      testRunsCount: indicators.length,
-      averageErrorRate,
-      averageSecurityScore,
-    };
-  }
+			const lastIndicator = regressionIndicators[regressionIndicators.length - 1] as Record<
+				string,
+				any
+			>;
 
-  // Devuelve un equipo por id (y lanza 404 si no existe)
-  async findById(id: string): Promise<Project> {
-    const project = await this.projectRepository.findOne({
-      where: { id },
-    });
+			currentCoverage = Number(lastIndicator.automationCoverage || 0);
+		}
 
-    if (!project) {
-      throw new NotFoundException(`Project with id ${id} not found`);
-    }
+		// Calcular métricas de performance
+		let averageErrorRate = 0;
+		if (performanceIndicators.length > 0) {
+			let totalErrorRate = 0;
+			for (const indicator of performanceIndicators as Record<string, any>[]) {
+				if (indicator.errorRate !== null && indicator.errorRate !== undefined) {
+					totalErrorRate += Number(indicator.errorRate);
+				}
+			}
+			averageErrorRate = totalErrorRate / performanceIndicators.length;
+		}
 
-    return project;
-  }
+		// Calcular métricas de security
+		let averageSecurityScore = 100;
+		if (securityIndicators.length > 0) {
+			let totalSecurityScore = 0;
+			for (const indicator of securityIndicators as Record<string, any>[]) {
+				totalSecurityScore +=
+					indicator.securityScore !== null && indicator.securityScore !== undefined
+						? Number(indicator.securityScore)
+						: 100;
+			}
+			averageSecurityScore = totalSecurityScore / securityIndicators.length;
+		}
 
-  // Crea un nuevo equipo
-  async create(createProjectDto: CreateProjectDto): Promise<Project> {
-    // Verificar si ya existe un proyecto con el mismo product y prefix
-    const existingProject = await this.projectRepository.findOne({
-      where: [
-        { product: createProjectDto.product },
-        { prefix: createProjectDto.prefix },
-      ],
-    });
+		return {
+			averageSuccessRate,
+			currentCoverage,
+			testRunsCount: indicators.length,
+			averageErrorRate,
+			averageSecurityScore,
+		};
+	}
 
-    if (existingProject) {
-      throw new ConflictException(
-        `Project with product "${createProjectDto.product}" or prefix "${createProjectDto.prefix}" already exists`,
-      );
-    }
+	// Devuelve un equipo por id (y lanza 404 si no existe) - Solo campos públicos
+	async findById(id: string): Promise<any> {
+		const project = await this.findByIdInternal(id);
+		return this.toProjectDto(project);
+	}
 
-    const newProject = this.projectRepository.create(createProjectDto);
-    return this.projectRepository.save(newProject);
-  }
+	// Método interno que devuelve el objeto completo de DynamoDB (con PK, SK, etc)
+	private async findByIdInternal(id: string): Promise<Record<string, any>> {
+		// Scan para buscar por ID (no es la PK)
+		const items = await this.dynamodb.scan({
+			filter: 'id = :id AND EntityType = :type',
+			filterValues: { ':id': id, ':type': 'Project' },
+		});
 
-  // Actualiza completamente un equipo (PUT)
-  async update(
-    id: string,
-    updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    const project = await this.findById(id);
-    Object.assign(project, updateProjectDto);
-    return this.projectRepository.save(project);
-  }
+		if (items.length === 0) {
+			throw new NotFoundException(`Project with id ${id} not found`);
+		}
 
-  // Actualiza parcialmente un equipo (PATCH)
-  async partialUpdate(
-    id: string,
-    updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    const project = await this.findById(id);
-    Object.assign(project, updateProjectDto);
-    return this.projectRepository.save(project);
-  }
+		return items[0] as Record<string, any>;
+	}
 
-  // Elimina un equipo por id
-  async delete(id: string): Promise<void> {
-    const project = await this.findById(id);
+	// Mapea un proyecto de DynamoDB a DTO (solo campos necesarios)
+	private toProjectDto(project: Record<string, any>): Record<string, any> {
+		return {
+			id: project.id as string,
+			product: project.product as string,
+			prefix: project.prefix as string,
+			totalDefinedTests: project.totalDefinedTests as number,
+			createdAt: project.createdAt as string,
+			updatedAt: project.updatedAt as string,
+		};
+	}
 
-    // Verificar si existen indicadores asociados
-    const indicatorsCount = await this.indicatorsRepository.count({
-      where: { projectId: id },
-    });
+	// Crea un nuevo equipo
+	async create(createProjectDto: CreateProjectDto): Promise<any> {
+		// Verificar si ya existe proyecto con el mismo prefix (PK)
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+		const existingByPrefix = await this.dynamodb.get(
+			`PROJECT#${createProjectDto.prefix}`,
+			'METADATA'
+		);
+		if (existingByPrefix) {
+			throw new ConflictException(
+				`Project with prefix "${createProjectDto.prefix}" already exists`
+			);
+		}
 
-    if (indicatorsCount > 0) {
-      throw new BadRequestException(
-        `Cannot delete project "${project.product}". It has ${indicatorsCount} test run(s) associated. Please delete all test runs before deleting the project.`,
-      );
-    }
+		// Verificar si ya existe proyecto con el mismo product (GSI2)
+		const existingByProduct = await this.dynamodb.queryGSI(
+			'GSI2',
+			`PRODUCT#${createProjectDto.product}`
+		);
+		if (existingByProduct && existingByProduct.length > 0) {
+			throw new ConflictException(
+				`Project with product "${createProjectDto.product}" already exists`
+			);
+		}
 
-    await this.projectRepository.remove(project);
-  }
+		const id = uuidv4();
+		const now = new Date().toISOString();
+
+		const projectItem = {
+			PK: `PROJECT#${createProjectDto.prefix}`,
+			SK: 'METADATA',
+			EntityType: 'Project',
+			id,
+			prefix: createProjectDto.prefix,
+			product: createProjectDto.product,
+			totalDefinedTests: createProjectDto.totalDefinedTests,
+			createdAt: now,
+			updatedAt: now,
+			// GSI2 for product lookup
+			GSI2PK: `PRODUCT#${createProjectDto.product}`,
+			GSI2SK: `PROJECT#${createProjectDto.prefix}`,
+		};
+
+		await this.dynamodb.put(projectItem);
+		return this.toProjectDto(projectItem);
+	}
+
+	// Actualiza completamente un equipo (PUT/PATCH)
+	// Solo permite actualizar totalDefinedTests
+	// product y prefix no se pueden cambiar porque son llaves (PK y GSI2)
+	async update(id: string, updateProjectDto: UpdateProjectDto): Promise<any> {
+		const project = await this.findByIdInternal(id);
+
+		const updates: Record<string, any> = {
+			updatedAt: new Date().toISOString(),
+		};
+
+		if (updateProjectDto.totalDefinedTests !== undefined) {
+			updates.totalDefinedTests = updateProjectDto.totalDefinedTests;
+		}
+
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+		const updatedProject = await this.dynamodb.update(
+			project.PK as string,
+			project.SK as string,
+			updates,
+			true
+		);
+
+		return this.toProjectDto(updatedProject as Record<string, any>);
+	}
+
+	// Actualiza parcialmente un equipo (PATCH)
+	async partialUpdate(id: string, updateProjectDto: UpdateProjectDto): Promise<any> {
+		return this.update(id, updateProjectDto);
+	}
+
+	// Elimina un equipo por id
+	async delete(id: string): Promise<void> {
+		const project = await this.findByIdInternal(id);
+
+		// Verificar si existen indicadores asociados
+		// Los indicators tienen PK=PROJECT#{prefix}, SK=INDICATOR#...
+		const indicators = await this.dynamodb.query(project.PK as string, {
+			skBeginsWith: 'INDICATOR#',
+			limit: 1,
+		});
+
+		if (indicators.length > 0) {
+			// Contar todos los indicators para el mensaje
+			const allIndicators = await this.dynamodb.query(project.PK as string, {
+				skBeginsWith: 'INDICATOR#',
+			});
+
+			throw new BadRequestException(
+				`Cannot delete project "${project.product as string}". It has ${allIndicators.length} test run(s) associated. Please delete all test runs before deleting the project.`
+			);
+		}
+
+		await this.dynamodb.delete(project.PK as string, project.SK as string);
+	}
 }

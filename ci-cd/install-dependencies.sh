@@ -1,32 +1,27 @@
 #!/bin/bash
+set -eux
 
-###############################################################################
-# Installation Script for kata-backend
-# Installs all dependencies for the project
-###############################################################################
+# Script para instalar dependencias en CI/CD
+# Soporta integración con Artifactory privado de la organización
 
-set -e  # Exit on any error
+echo "========================================="
+echo "Installing Dependencies"
+echo "========================================="
 
-# Colors for output
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Si existen credenciales de Artifactory, configurar .npmrc
+if [ ! -z "${ARTIFACTORY_READER_USER:-}" ] && [ ! -z "${ARTIFACTORY_READER_API_KEY:-}" ]; then
+  echo "Configuring Artifactory authentication..."
+  rm ~/.npmrc 2>/dev/null || true
+  echo @npm-bbta:registry=https://bbogdigital.jfrog.io/bbogdigital/api/npm/npm-bbta/ > ~/.npmrc
+  curl -u "${ARTIFACTORY_READER_USER}:${ARTIFACTORY_READER_API_KEY}" \
+    'https://bbogdigital.jfrog.io/bbogdigital/api/npm/auth' >> ~/.npmrc
+  echo "✅ Artifactory configured"
+else
+  echo "⚠️  Artifactory credentials not found, using public npm registry"
+fi
 
-print_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_info "=== Installing kata-backend dependencies ==="
-
-# Check Node.js version
-NODE_VERSION=$(node -v)
-print_info "Node.js version: $NODE_VERSION"
-
-# Check npm version
-NPM_VERSION=$(npm -v)
-print_info "npm version: $NPM_VERSION"
-
-# Clean install
-print_info "Running clean install..."
+# Instalar dependencias
+echo "Running npm ci..."
 npm ci
 
-print_info "=== Installation complete ✓ ==="
+echo "✅ Dependencies installed successfully"

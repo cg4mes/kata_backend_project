@@ -1,18 +1,35 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProjectsService } from './projects.service';
+import { DynamoDBDatasource } from '../common/datasources/dynamodb.datasource';
 
 describe('ProjectsService', () => {
-  let service: ProjectsService;
+	let service: ProjectsService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ProjectsService],
-    }).compile();
+	const mockDynamoDBDatasource = {
+		query: jest.fn(),
+		queryGSI: jest.fn(),
+		scan: jest.fn(),
+		get: jest.fn(),
+		put: jest.fn(),
+		update: jest.fn(),
+		delete: jest.fn(),
+	};
 
-    service = module.get<ProjectsService>(ProjectsService);
-  });
+	beforeEach(async () => {
+		const module: TestingModule = await Test.createTestingModule({
+			providers: [
+				ProjectsService,
+				{
+					provide: DynamoDBDatasource,
+					useValue: mockDynamoDBDatasource,
+				},
+			],
+		}).compile();
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
+		service = module.get<ProjectsService>(ProjectsService);
+	});
+
+	it('should be defined', () => {
+		expect(service).toBeDefined();
+	});
 });

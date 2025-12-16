@@ -1,0 +1,9 @@
+{
+	"vars": {
+		"NODE_ENV": "qa",
+		"AWS_REGION": "us-east-1",
+		"DYNAMODB_TABLE_NAME": "kata-backend-qa",
+		"JWT_SECRET_NAME": "kata-backend-jwt-secret-qa",
+		"CORS_ORIGINS": "http://localhost:5173,https://qa-frontend.example.com"
+	}
+}

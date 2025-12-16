@@ -1,0 +1,9 @@
+{
+	"vars": {
+		"NODE_ENV": "production",
+		"AWS_REGION": "us-east-1",
+		"DYNAMODB_TABLE_NAME": "kata-backend-production",
+		"JWT_SECRET_NAME": "kata-backend-jwt-secret-production",
+		"CORS_ORIGINS": "https://frontend.example.com"
+	}
+}
