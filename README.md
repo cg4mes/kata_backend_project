@@ -207,65 +207,117 @@ cd kata_backend_project
 npm install
 ```
 
-### 2. Configurar DynamoDB Local
+### 2. Iniciar DynamoDB Local con Docker
 
 ```bash
-# Iniciar DynamoDB Local con Docker
-docker-compose up -d
-
-# Crear tabla local
-./create-dynamodb-table.sh
-
-# Verificar que está corriendo
-aws dynamodb list-tables --endpoint-url http://localhost:8000 --region us-east-1
+docker compose up -d dynamodb-local
 ```
+
+Esto iniciará DynamoDB Local en `http://localhost:8000`.
 
 ### 3. Configurar Variables de Entorno
 
-```bash
-# Copiar archivo de ejemplo
-cp .env.example .env
+El archivo `.env` ya está configurado con los valores apropiados para desarrollo local:
 
-# Editar .env con tu configuración
-# Para desarrollo local, usa los valores por defecto
+```env
+# DynamoDB Local
+DYNAMO_ENDPOINT=http://localhost:8000
+DYNAMODB_TABLE_NAME=kata-backend-local
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=local
+AWS_SECRET_ACCESS_KEY=local
+
+# JWT Authentication
+JWT_SECRET=your-super-secret-jwt-key-change-this
+JWT_EXPIRATION=24h
+
+# CORS
+CORS_ORIGIN=http://localhost:5173
 ```
 
-### 4. Ejecutar la Aplicación
+### 4. Crear Tabla e Insertar Datos de Prueba
 
 ```bash
-# Modo desarrollo con hot-reload
+npm run db:setup
+```
+
+Este comando:
+
+- Crea la tabla `kata-backend-local` con el esquema correcto (PK, SK, GSI1, GSI2)
+- Inserta dos usuarios de prueba:
+  - **Admin**: `admin@kata.com` / `admin123` (rol: admin)
+  - **Usuario**: `user@kata.com` / `user123` (rol: user)
+
+### 5. Iniciar el Servidor Backend
+
+```bash
 npm run start:dev
-
-# La API estará disponible en:
-# http://localhost:3000
-#
-# Documentación Swagger:
-# http://localhost:3000/api
 ```
 
-### 5. Usuario Admin por Defecto
+El servidor estará disponible en:
 
-El primer inicio crea automáticamente:
-
-- **Username**: `admin`
-- **Email**: `admin@kata.com`
-- **Password**: `Admin@123`
-- **Role**: `admin`
-
-⚠️ **Cambiar la contraseña en producción inmediatamente**
+- **API**: `http://localhost:3000`
+- **Swagger Docs**: `http://localhost:3000/api`
 
 ## 💻 Desarrollo Local
 
-### DynamoDB Local Setup
+### 📝 Scripts Disponibles
 
-El proyecto usa DynamoDB Local para desarrollo sin necesidad de AWS:
+| Comando               | Descripción                                             |
+| --------------------- | ------------------------------------------------------- |
+| `npm run db:init`     | Crea la tabla de DynamoDB (elimina la existente si hay) |
+| `npm run db:seed`     | Inserta usuarios de prueba                              |
+| `npm run db:setup`    | Ejecuta `db:init` + `db:seed`                           |
+| `npm run start`       | Iniciar aplicación                                      |
+| `npm run start:dev`   | Hot-reload development                                  |
+| `npm run start:debug` | Debug mode                                              |
+| `npm run build`       | Compilar para producción                                |
+| `npm run format`      | Formatear con Prettier                                  |
+| `npm run lint`        | ESLint                                                  |
+| `npm run lint:fix`    | Auto-fix linting issues                                 |
+| `npm run test`        | Unit tests                                              |
+| `npm run test:watch`  | Watch mode                                              |
+| `npm run test:cov`    | Con cobertura                                           |
+| `npm run test:e2e`    | End-to-end tests                                        |
+
+### 🗄️ Estructura de la Tabla DynamoDB
+
+**Tabla**: `kata-backend-local`
+
+- **Primary Key**:
+  - `PK` (HASH)
+  - `SK` (RANGE)
+
+- **GSI1**: Índice para búsqueda por email
+  - `GSI1PK` (HASH)
+  - `GSI1SK` (RANGE)
+
+- **GSI2**: Índice para búsqueda por producto
+  - `GSI2PK` (HASH)
+
+### 👤 Usuarios de Prueba
+
+Después de ejecutar `npm run db:setup`, tendrás estos usuarios disponibles:
+
+#### Administrador
+
+- **Email**: admin@kata.com
+- **Password**: admin123
+- **Rol**: admin
+
+#### Usuario Regular
+
+- **Email**: user@kata.com
+- **Password**: user123
+- **Rol**: user
+
+⚠️ **Importante**: Cambiar las contraseñas en producción.
+
+### 🔧 Comandos Útiles de DynamoDB Local
 
 ```bash
-# Iniciar DynamoDB
-docker-compose up -d
-
-# Crear tabla
-./create-dynamodb-table.sh
+# Verificar que DynamoDB Local está corriendo
+docker ps | grep dynamodb
 
 # Ver contenido de la tabla
 aws dynamodb scan \
@@ -274,35 +326,62 @@ aws dynamodb scan \
   --region us-east-1
 
 # Detener DynamoDB
-docker-compose down
+docker compose down
 
-# Reset completo (borra datos)
-docker-compose down -v
-docker-compose up -d
-./create-dynamodb-table.sh
+# Reiniciar DynamoDB
+docker compose restart dynamodb-local
+
+# Reset completo (borra todos los datos)
+docker compose down
+rm -rf dynamodb-data/*
+docker compose up -d dynamodb-local
+sleep 3
+npm run db:setup
 ```
 
-### Scripts de Desarrollo
+### 🐛 Solución de Problemas
+
+#### Error: "The security token included in the request is invalid"
+
+Esto ocurre cuando el backend intenta conectarse a AWS DynamoDB en lugar de DynamoDB Local.
+
+**Solución**:
+
+1. Asegúrate de que el archivo `.env` existe y contiene `DYNAMO_ENDPOINT=http://localhost:8000`
+2. Reinicia el servidor backend: `npm run start:dev`
+
+#### Error: "Cannot connect to DynamoDB"
+
+**Solución**:
+
+1. Verifica que DynamoDB Local esté ejecutándose:
+   ```bash
+   docker ps | grep dynamodb
+   ```
+2. Si no está ejecutándose, inícialo:
+   ```bash
+   docker compose up -d dynamodb-local
+   ```
+
+#### Error: "Table does not exist"
+
+**Solución**:
 
 ```bash
-# Desarrollo
-npm run start          # Iniciar aplicación
-npm run start:dev      # Hot-reload development
-npm run start:debug    # Debug mode
+npm run db:setup
+```
 
-# Build
-npm run build          # Compilar para producción
+#### Puerto 3000 ya en uso
 
-# Calidad
-npm run format         # Formatear con Prettier
-npm run lint           # ESLint
-npm run lint:fix       # Auto-fix linting issues
+**Solución**:
 
-# Testing
-npm run test           # Unit tests
-npm run test:watch     # Watch mode
-npm run test:cov       # Con cobertura
-npm run test:e2e       # End-to-end tests
+```bash
+# macOS/Linux
+lsof -ti :3000 | xargs kill -9
+
+# Windows
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
 ```
 
 ### Ejecutar en Modo Local vs Lambda
