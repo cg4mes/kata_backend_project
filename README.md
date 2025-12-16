@@ -859,6 +859,71 @@ kata_backend_project/
 6. Rate limiting en endpoints públicos
 7. Input sanitization en todos los endpoints
 
+## ☁️ Infraestructura y Despliegue
+
+### Arquitectura de Despliegue
+
+Este proyecto sigue los estándares del Banco de Bogotá para aplicaciones serverless, donde la infraestructura es gestionada por el equipo de infraestructura centralizado.
+
+### Estructura de Despliegue
+
+```
+kata_backend_project/
+├── lambda/
+│   └── index.js          # Lambda handler (punto de entrada)
+├── dist/                 # Código compilado
+├── ci-cd/
+│   ├── deploy.sh         # Script de versionado y deploy
+│   └── install-dependencies.sh
+└── pipeline/             # Configuraciones por ambiente
+    ├── prod-env.json
+    ├── qa-env.json
+    └── stg-env.json
+```
+
+### Proceso de Despliegue
+
+Similar a proyectos en producción del banco como `bbog-pse-loan-payment-adapter`:
+
+1. **Build**: `npm run build` - Compila TypeScript a JavaScript en `/dist`
+2. **Test**: `npm test` - Ejecuta linting y tests
+3. **Tag**: Scripts en `/ci-cd` manejan versionado automático
+4. **Deploy**: Pipeline CI/CD corporativo detecta tags y despliega
+
+### Variables de Entorno Requeridas
+
+El código es completamente agnóstico a la infraestructura y se configura mediante variables de entorno:
+
+```bash
+# Requeridas para Lambda
+NODE_ENV=production
+DYNAMODB_TABLE_NAME=<nombre-tabla>
+AWS_REGION=us-east-1
+JWT_SECRET_ARN=<arn-secret-manager>
+CORS_ORIGINS=<urls-frontend>
+```
+
+### Especificación de Recursos AWS
+
+El código es completamente agnóstico a la infraestructura. Los recursos necesarios son:
+
+**Lambda Function**
+
+- Runtime: Node.js 20.x, Memory: 512MB, Timeout: 30s
+- Handler: `lambda/index.handler`
+
+**DynamoDB Table**
+
+- Primary Key: PK (String), SK (String)
+- GSI1: GSI1PK, GSI1SK (búsqueda por email)
+- GSI2: GSI2PK, GSI2SK (búsqueda por producto)
+
+**Secrets Manager**
+
+- JWT Secret de 64 caracteres
+
+**API Gateway HTTP API v2** + **IAM Roles** (DynamoDB, Secrets Manager, CloudWatch Logs)
+
 ## 🤝 Contribuir
 
 ### Workflow de Desarrollo
@@ -892,6 +957,160 @@ kata_backend_project/
 - [ ] Variables de entorno documentadas en `.env.example`
 - [ ] Commit messages siguen convención
 
+## � Adaptación al Estándar del Banco de Bogotá
+
+Este proyecto ha sido adaptado para seguir los estándares corporativos del Banco de Bogotá, basándose en proyectos en producción como `bbog-pse-loan-payment-adapter`.
+
+### Estructura Lambda Corporativa
+
+El proyecto utiliza la estructura estándar del banco:
+
+```javascript
+// lambda/index.js - Punto de entrada para AWS Lambda
+console.log('start-lambda', 'Iniciando lambda...');
+const isInLambda = !!process.env.LAMBDA_TASK_ROOT;
+
+if (isInLambda) {
+	const app = require('../dist/lambda');
+	exports.handler = app.handler;
+} else {
+	console.error('Error executing as lambda.');
+}
+```
+
+### Cambios Implementados
+
+#### ✅ Naming Convention
+
+- **Nombre**: `bbog-cat-kata-backend`
+- **Autor**: CoE Agile Testing
+- **Licencia**: ISC (estándar del banco)
+
+#### ✅ Estructura de Despliegue
+
+```
+bbog-cat-kata-backend/
+├── lambda/index.js         # Punto de entrada Lambda (main)
+├── dist/                   # Código compilado
+├── ci-cd/                  # Scripts corporativos
+│   ├── deploy.sh          # Versionado automático
+│   └── install-dependencies.sh
+└── pipeline/               # Configs por ambiente
+    ├── prod-env.json
+    ├── qa-env.json
+    └── stg-env.json
+```
+
+#### ✅ Scripts CI/CD
+
+- **deploy.sh**: Versionado automático con git tags
+- **install-dependencies.sh**: Instalación de dependencias
+- Compatible con pipelines corporativos del banco
+
+#### ✅ Código Agnóstico
+
+Todo el código se configura mediante variables de entorno, permitiendo adaptarse a cualquier infraestructura:
+
+```bash
+NODE_ENV=production
+DYNAMODB_TABLE_NAME=<nombre-tabla>
+AWS_REGION=us-east-1
+JWT_SECRET_ARN=<arn-secret-manager>
+CORS_ORIGINS=<urls-frontend>
+```
+
+### Infraestructura de Referencia
+
+La carpeta `/infrastructure-reference` contiene código CDK para **desarrollo local y referencia únicamente**. En producción, los recursos AWS son provisionados por el equipo de infraestructura centralizado del banco.
+
+Para especificaciones técnicas completas de los recursos requeridos, consultar:
+
+- `infrastructure-reference/aws-resources-spec.md` - Especificación detallada de recursos AWS
+
+### Proceso de Despliegue Corporativo
+
+Similar a proyectos en producción del banco:
+
+1. **Build**: `npm run build` → Compila a `/dist`
+2. **Test**: `npm test` → Linting + tests unitarios
+3. **Tag**: `./ci-cd/deploy.sh` → Crea version tag
+4. **Deploy**: Pipeline CI/CD corporativo detecta tag y despliega automáticamente
+
+## 🚀 Checklist de Despliegue
+
+### Pre-Despliegue
+
+- [ ] `npm run lint:check` - Sin errores
+- [ ] `npm run test` - Tests pasan
+- [ ] `npm run build` - Compila correctamente
+- [ ] Código revisado y aprobado en PR
+
+### Variables de Entorno en Lambda
+
+```bash
+# Ambiente QA
+NODE_ENV=qa
+DYNAMODB_TABLE_NAME=bbog-cat-kata-backend-qa
+AWS_REGION=us-east-1
+JWT_SECRET_ARN=arn:aws:secretsmanager:us-east-1:XXXX:secret:kata-jwt-qa
+CORS_ORIGINS=https://qa-kata.bancobogota.com.co
+
+# Ambiente Producción
+NODE_ENV=production
+DYNAMODB_TABLE_NAME=bbog-cat-kata-backend-prod
+AWS_REGION=us-east-1
+JWT_SECRET_ARN=arn:aws:secretsmanager:us-east-1:XXXX:secret:kata-jwt-prod
+CORS_ORIGINS=https://kata.bancobogota.com.co
+```
+
+### Recursos AWS Requeridos
+
+El equipo de infraestructura debe provisionar:
+
+**Lambda Function**
+
+- Runtime: Node.js 20.x
+- Memory: 512 MB
+- Timeout: 30 segundos
+- Handler: lambda/index.handler
+
+**DynamoDB Table**
+
+- Nombre: `bbog-cat-kata-backend-{env}`
+- Primary Key: PK (String), SK (String)
+- GSI1: GSI1PK, GSI1SK (búsqueda por email)
+- GSI2: GSI2PK, GSI2SK (búsqueda por producto)
+- Billing: On-demand o provisionado
+
+**Secrets Manager**
+
+- Secret JWT: String de 64 caracteres
+- Permisos de lectura para Lambda
+
+**API Gateway**
+
+- HTTP API v2
+- CORS configurado
+- Integración con Lambda
+
+**IAM Roles**
+
+- DynamoDB: GetItem, PutItem, UpdateItem, DeleteItem, Query, Scan
+- Secrets Manager: GetSecretValue
+- CloudWatch Logs: CreateLogGroup, CreateLogStream, PutLogEvents
+
+### Verificación Post-Despliegue
+
+```bash
+# Health check
+curl https://api.bancobogota.com.co/kata/health
+
+# Login test
+curl -X POST https://api.bancobogota.com.co/kata/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@kata.com","password":"admin123"}'
+```
+
 ## 📞 Soporte
 
 ### Issues
@@ -905,17 +1124,12 @@ Para reportar bugs o solicitar features:
 
 ### Contacto
 
-- **Equipo de Desarrollo**: [dev-team@example.com](mailto:dev-team@example.com)
-- **Issues**: https://github.com/your-org/kata-backend/issues
-- **Wiki**: https://github.com/your-org/kata-backend/wiki
-
-## 📝 Changelog
-
-Ver [CHANGELOG.md](CHANGELOG.md) para historial de cambios.
+- **Equipo de Desarrollo**: CoE Agile Testing
+- **Documentación**: Ver README.md y archivos en `/infrastructure-reference`
 
 ## 📄 Licencia
 
-Este proyecto es privado y propietario.
+ISC - Este proyecto sigue las convenciones del Banco de Bogotá.
 
 ## 🔗 Recursos Útiles
 
@@ -924,7 +1138,6 @@ Este proyecto es privado y propietario.
 - [NestJS Docs](https://docs.nestjs.com)
 - [AWS Lambda Docs](https://docs.aws.amazon.com/lambda/)
 - [DynamoDB Developer Guide](https://docs.aws.amazon.com/dynamodb/)
-- [AWS CDK Docs](https://docs.aws.amazon.com/cdk/)
 - [JWT.io](https://jwt.io) - JWT debugger
 
 ### Single Table Design
@@ -939,6 +1152,6 @@ Este proyecto es privado y propietario.
 
 ---
 
-**Construido con ❤️ usando NestJS + AWS Serverless**
+**Construido con ❤️ por CoE Agile Testing usando NestJS + AWS Serverless**
 
-_Última actualización: Diciembre 2025_
+_Proyecto: bbog-cat-kata-backend | Última actualización: Diciembre 2025_
